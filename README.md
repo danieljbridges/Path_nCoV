@@ -1,4 +1,4 @@
-# nomads-workshop
+# PATH pipelines
 A collection of bioinformatic pipelines for analysis of SARS-COV-2 WGS in Zambia with an emphasis on ONT outputs.
 
 ## Getting started
