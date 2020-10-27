@@ -3,6 +3,7 @@ channels:
   - conda-forge
   - bioconda
 dependencies:
+  - nextflow
   - bedtools
   - scikit-allel
   - jupyter
