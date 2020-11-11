@@ -4,7 +4,7 @@
   "url": "http://artic.network/",
   "displayOptions": {
     "coverageThresholds": {
-      ">200x": 200, ">100x": 100, ">20x": 20, "0x": 0
+      ">200x": 200, ">100x": 100, ">30x": 30, "0x": 0
     }
   }
 }
