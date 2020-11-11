@@ -8,12 +8,45 @@ set -e #exit whenever a command exits with a non zero status
 set -u #treat undefined variables as errors
 set -o pipefail #pipe will be considered successful if all the commands are executed without errors
 
+#==============FUNCTIONS==================
 
-#Recognise any CLI options
-while getopts ':i:o:r:' opt; do
+function Help {
+   # Display Help
+   echo -e "This script takes a tab delimited file listing the barcode (2 digits) and the sample name and generates a JSON file called run_configuration.json for use by rampart.
+   Syntax: $(basename "$0") [-h|i|o|r]
+      
+    Required arguments:
+   -i      Tab delimited file containing the assigned barcode (2 digit) and sample name
+   -o      Directory location where the output file should be stored
+   -r      Runname for rampart heading
+   
+    Optional arguments:
+   -h      Print this help"
+}
+
+function present {
+    if [ $2 = 'd' ] ; then
+        if [ ! -d $1 ] ; then
+            echo -e "$1 is not present \nExiting script."
+            exit
+        fi
+    elif [ $2 = 'f' ] ; then
+        if [ ! -f $1 ] ; then
+            echo -e "$1 is not present \nExiting script."
+            exit
+        fi
+    fi
+}
+
+#==============Recognise any CLI options==================
+while getopts 'hi:o:r:' opt; do
   case "$opt" in
     i)
       INPUTFILE=$OPTARG
+      ;;
+    h)
+      Help
+      exit
       ;;
     o)
       OUTPUTDIR=$OPTARG
@@ -34,24 +67,10 @@ while getopts ':i:o:r:' opt; do
 done
 shift $((OPTIND -1))
 
-#==============FUNCTIONS==================
 
-function present {
-    if [ $2 = 'd' ] ; then
-        if [ ! -d $1 ] ; then
-            echo -e "$1 is not present \nExiting script."
-            exit
-        fi
-    elif [ $2 = 'f' ] ; then
-        if [ ! -f $1 ] ; then
-            echo -e "$1 is not present \nExiting script."
-            exit
-        fi
-    fi
-}
 
 #==============THE SCRIPT==================
-
+#Ensure files / directories are present
 present $INPUTFILE "f"
 present $OUTPUTDIR "d"
 
