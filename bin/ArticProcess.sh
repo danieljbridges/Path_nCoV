@@ -203,7 +203,7 @@ echo -e "${GREEN}CHECKED:${NC}All required programs, files and locations are pre
 #Run the guppy barcoder to demultiplex
 if [ $GUPPYBARCODER = 1 ] ; then
     printf "${BLUE}1 - Running the guppy_barcoder to demultiplex the FASTQ files.${NC} \n\n"
-    guppy_barcoder --require_barcodes_both_ends -i $FASTQRAW -s $FASTQ_OUT --arrangements_files "barcode_arrs_nb12.cfg barcode_arrs_nb24.cfg
+    guppy_barcoder --require_barcodes_both_ends -i $FASTQRAW -s $FASTQ_OUT --arrangements_files "barcode_arrs_nb12.cfg barcode_arrs_nb24.cfg"
 else
     printf "###### ${GREEN}Skipping guppy_barcoder step${NC} ######\n\n"
 fi
