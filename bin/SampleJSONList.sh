@@ -70,6 +70,14 @@ shift $((OPTIND -1))
 
 
 #==============THE SCRIPT==================
+#Give default entries
+#INPUTFILE=${INPUTFILE:-0)
+#OUTPUTDIR=${OUTPUTDIR:-0)
+#RUNNAME=${RUNANME:-0)
+
+#IF [ $INPUTFILE =0 |]
+
+
 #Ensure files / directories are present
 present $INPUTFILE "f"
 present $OUTPUTDIR "d"
@@ -77,7 +85,7 @@ present $OUTPUTDIR "d"
 OUTPUTFILE="$OUTPUTDIR/run_configuration.json"
 
 #Start the JSON File
-echo -e "{
+printf "{
   \"title\": \"Run $RUNNAME\",
   \"basecalledPath\": \"fastq_pass\",
   \"samples\": [" > $OUTPUTFILE
@@ -88,10 +96,10 @@ NUMBARCODES=`cat $INPUTFILE | wc -l`
 COUNT=1
 until [ $NUMBARCODES -lt $COUNT ]; do
     #Pull out the data sequentially by row (FNR)
-    SAMPLE=`awk -F"\t" 'FNR == '$COUNT' {print $2}' $INPUTFILE`
+    SAMPLE=`awk -F"\t" 'FNR == '$COUNT' {print $2}' $INPUTFILE | tr -d '\r'`
     BARCODE=`awk -F"\t" 'FNR == '$COUNT' {print $1}' $INPUTFILE`
-    echo -e "    {
-      \"name\": \"$SAMPLE\",
+    printf "    {
+      \"name\": \"$SAMPLE ($BARCODE)\",
       \"description\": \"\",
       \"barcodes\": [ \"NB$BARCODE\" ]" >> $OUTPUTFILE
     if [ $NUMBARCODES == $COUNT ]; then
@@ -101,9 +109,10 @@ until [ $NUMBARCODES -lt $COUNT ]; do
     fi
     #Increment the count
     let COUNT=COUNT+1
+    printf "Sample = $SAMPLE, Barcode = $BARCODE\n"
 done
 
 #Finish off the JSON File
-echo -e "  ]
+printf "  ]
 }" >> $OUTPUTFILE
 

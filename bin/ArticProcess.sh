@@ -1,8 +1,10 @@
 #!/bin/bash
 # ----------------------------------------------------------------------
 # Script to automate the artic processing pipeline for SARS-CoV-2 WGS
-# Version 0.1 29/10/2020
+# Version 0.2 29/10/2020
 # Written by Daniel Bridges (danieljbridges@gmail.com)
+#
+#Changelog
 # ----------------------------------------------------------------------
 set -e #exit whenever a command exits with a non zero status
 set -u #treat undefined variables as errors
@@ -13,18 +15,23 @@ set -o pipefail #pipe will be considered successful if all the commands are exec
 function Help {
    # Display Help
    echo -e "This script chains together the various processes of the artic network bioinformatic pipeline for each sample.
-   Syntax: $(basename "$0") [-f|n|o|p|r|s|w]
+   Syntax: $(basename "$0") [-f123|n|o|p|r|s|w]
       
-    Required arguments:
+    Configuration:
    -n      Runname to prefix output files with (will be concatenated with the sample name)
    -o      Directory location where the output files should be stored
    -p      Primers used during PCR [Sanger | Artic]
    -r      Location directory of the primer scheme used
    -w      Directory location of the raw output from the ONT platform (assumed to contain fast5_pass and fastq_pass directories.
    
-    Optional arguments:
+    Optional:
    -h      Print this help
-   -s      Name of tab delimited file containing the barcode (2 digit) and sample name relationship, if not Samples.txt"
+   -s      Name of tab delimited file containing the barcode (2 digit) and sample name relationship, if not Samples.txt
+   -m      Process using the medaka pipeline rather than with nanopolish
+   -1      Omit the guppy_barcoder step
+   -2      Omit the guppyplex step
+   -3      Omit the artic minion step
+   "
 }
 
 function present {
@@ -42,22 +49,26 @@ function present {
 }
 
 #==============Recognise any CLI options==================
-while getopts 'hp:o:r:n:s:w:' opt; do
+while getopts 'hp:o:r:n:s:w:123' opt; do
   case "$opt" in
     p)
       PRIMERS=$OPTARG
       ;;
     o)
       OUTPUT=$OPTARG
-      echo $OUTPUT
       ;;
     r)
       PRIMERDIR=$OPTARG
+      present $PRIMERDIR "d"
       ;;
     w)
       RAWDATADIR=$OPTARG
       FAST5RAW="$RAWDATADIR" #/fast5_pass"
       FASTQRAW="$RAWDATADIR/fastq_pass"
+      #Ensure all present
+      present $FAST5RAW "d"
+      present $FASTQRAW "d"
+      present $RAWDATADIR "d"
       ;;
     h)
       Help
@@ -65,6 +76,19 @@ while getopts 'hp:o:r:n:s:w:' opt; do
       ;;
     s)
       SAMPLES=$OPTARG
+      present $SAMPLES "f"
+      ;;
+    m)
+      MEDAKA=1
+      ;;
+    1)
+      GUPPYBARCODER=0
+      ;;
+    2)
+      GUPPYPLEX=0
+      ;;
+    3)
+      ARTICMINION=0
       ;;
     n)
       RUNNAME=$OPTARG
@@ -115,18 +139,16 @@ if [ $(which guppy_barcoder | wc -l) = 0 ] ; then
 fi
 
 #Determine if the files, directories etc exist 
-present $RAWDATADIR "d"
-present $FAST5RAW "d"
-present $FASTQRAW "d"
-present $PRIMERDIR "d"
-
 #Find the name of the sequencing summary
 SEQUENCINGSUMMARY="$RAWDATADIR/`ls $RAWDATADIR | grep sequencing_summary`"
 present $SEQUENCINGSUMMARY "f"
 
-#Enter default values if optional parameter not defined
+#Enter default values if parameter not defined
 SAMPLES=${SAMPLES:-$RAWDATADIR/Samples.txt}
-present $SAMPLES "f"
+GUPPYBARCODER=${GUPPYBARCODER:- 1}
+GUPPYPLEX=${GUPPYPLEX:- 1}
+ARTICMINION=${ARTICMINION:- 1}
+MEDAKA=${MEDAKA:- 0}
 
 #Make output dir if needed
 if [ ! -d $OUTPUT ] ; then
@@ -164,7 +186,7 @@ else
 fi
 
 #Ensure the barcode list is unique
-if [ $( awk -F"\t" '{print $1}' $SAMPLES | sort | uniq | wc -l ) != $( cat $SAMPLES | wc -l ) ] ; then
+if [ $( awk -F"\t" '{print $1}' $SAMPLES | sort | uniq | wc -l ) != $( <$SAMPLES wc -l ) ] ; then
     printf "${RED}ERROR:${NC} Duplicate barcodes present in $SAMPLES file\n"
     exit
 fi
@@ -179,58 +201,80 @@ echo -e "${GREEN}CHECKED:${NC}All required programs, files and locations are pre
 
 #==============THE SCRIPT==================Se   
 #Run the guppy barcoder to demultiplex
-printf "${BLUE}1 - Running the guppy_barcoder to demultiplex the FASTQ files.${NC} \n\n"
-guppy_barcoder --require_barcodes_both_ends -i $FASTQRAW -s $FASTQ_OUT --arrangements_files "barcode_arrs_nb12.cfg barcode_arrs_nb24.cfg"
+if [ $GUPPYBARCODER = 1 ] ; then
+    printf "${BLUE}1 - Running the guppy_barcoder to demultiplex the FASTQ files.${NC} \n\n"
+    guppy_barcoder --require_barcodes_both_ends -i $FASTQRAW -s $FASTQ_OUT --arrangements_files "barcode_arrs_nb12.cfg barcode_arrs_nb24.cfg
+else
+    printf "###### ${GREEN}Skipping guppy_barcoder step${NC} ######\n\n"
+fi
 
 #Move to the correct directory
 cd $FASTQ_OUT
 
-printf "${BLUE}2 - Combining demultiplexed files into a single fastq and excluding based on size.${NC}\n\n"
-#Run through the demuxed barcodes to combine into single fastq files
-for FILE in barcode[0-9]*; do
-artic guppyplex --skip-quality-check --min-length $MIN --max-length $MAX --directory $OUTPUT/fastq/$FILE --prefix $RUNNAME
-    :
-done
+if [ $GUPPYPLEX = 1 ] ; then
+    printf "${BLUE}2 - Combining demultiplexed files into a single fastq and excluding based on size.${NC}\n\n"
+    #Run through the demuxed barcodes to combine into single fastq files
+    for FILE in barcode[0-9]*; do
+        artic guppyplex --skip-quality-check --min-length $MIN --max-length $MAX --directory $OUTPUT/fastq/$FILE --prefix $RUNNAME
+    done
+else
+    printf "###### ${GREEN}Skipping guppyplex step${NC} ######\n\n"
+fi
 
-printf "${BLUE}3 - Importing samplenames and processing with artic minion command.${NC}\n\n"
-#Import samplenames / barcodes and then run the processing
-for FILE in $RUNNAME\_barcode[0-9]*.fastq ; do 
-    BARCODE=`echo $FILE | sed s/$RUNNAME// | sed s/_barcode// | sed s/.fastq//`
-    SAMPLENAME=`awk -F"\t" '$1=='$BARCODE' {print $2}' $SAMPLES | tr -d '\r' ` #tr to remove returns
+
+if [ $ARTICMINION = 1 ] ; then
+    printf "${BLUE}3 - Importing samplenames and processing with artic minion command.${NC}\n\n"
+    #Import samplenames / barcodes and then run the processing
+    for FILE in $RUNNAME\_barcode[0-9]*.fastq ; do 
+        BARCODE=`echo $FILE | sed s/$RUNNAME// | sed s/_barcode// | sed s/.fastq//`
+        SAMPLENAME=`awk -F"\t" '$1=='$BARCODE' {print $2}' $SAMPLES | tr -d '\r' ` #tr to remove returns
+        SAMPLENAME=${SAMPLENAME:- "Unknown_BC$BARCODE"}
         
-    #Ensure fastq file is not empty
-    FASTQLENGTH=`wc -l $FILE | sed s/$FILE//`  
-    
-    #Remove files that have not got enough data
-    if [ $FASTQLENGTH -gt 100 ] ; then
-        echo -e "\n\n Processing barcode number $BARCODE, Sample $SAMPLENAME \n"
-        #Run processing scheme
-        artic minion --normalise 200 --threads 4 --scheme-directory $PRIMERDIR --read-file $FILE --fast5-directory $FAST5RAW --sequencing-summary $SEQUENCINGSUMMARY $PRIMERSCHEME $SAMPLENAME
+        #Ensure fastq file is not empty
+        FASTQLENGTH=`wc -l $FILE | sed s/$FILE//`  
         
-        #Make samplename subdirectory if required
-        if [ ! -d $SAMPLENAME ] ; then
-            mkdir $SAMPLENAME
-            echo "Making subdirectory $SAMPLENAME"
+        #Remove files that have not got enough data
+        if [ $FASTQLENGTH -gt 200 ] ; then
+            echo -e "\n\n Processing barcode number $BARCODE, Sample $SAMPLENAME \n"
+            #Run processing scheme
+            if [ $MEDAKA = 1 ] ; then
+                printf "${GREEN}Using Medaka pipeline${NC}\n"
+                artic minion --medaka --normalise 200 --threads 4 --scheme-directory $PRIMERDIR --read-file $FILE nCoV-2019/V1 $SAMPLENAME
+            else
+                printf "${GREEN}Using Nanopolish pipeline${NC}\n"
+                artic minion --normalise 200 --threads 4 --scheme-directory $PRIMERDIR --read-file $FILE --fast5-directory $FAST5RAW --sequencing-summary $SEQUENCINGSUMMARY $PRIMERSCHEME $SAMPLENAME
+            fi
+            
+            #Make samplename subdirectory if required
+            if [ ! -d $SAMPLENAME ] ; then
+                mkdir $SAMPLENAME
+                echo "Making subdirectory $SAMPLENAME"
+            fi
+            
+            #Move output from what was produced into its own directory
+            find ./ -type f -name "$SAMPLENAME*" | xargs -I '{}'  mv {} "$SAMPLENAME"/
+            #Move directory to another level for clarity
+            mv $SAMPLENAME/ $FINAL_OUT/$SAMPLENAME
+        else
+            printf "${RED}ERROR:${NC} Too few reads in File $FILE (BC $BARCODE, Sample $SAMPLENAME).
+            Aborting processing this file\n"
         fi
-        
-        #Move output from what was produced into its own directory
-        find ./ -type f -name "$SAMPLENAME*" | xargs -I '{}'  mv {} "$SAMPLENAME"/
-        #Move directory to another level for clarity
-        mv $SAMPLENAME/ $FINAL_OUT/$SAMPLENAME
-    else
-        printf "${RED}ERROR:${NC} Too few reads in File $FILE (BC $BARCODE, Sample $SAMPLENAME). Aborting processing this file"
-    fi
-done
+    done
+else
+    echo "Skipping artic minion step"
+fi
 
 echo -e "\nAll process completed successfully. \n\n"
 exit
+
+######################## NOTES ##########
+#Once the above is complete
+
+# Concatenate and tidy up the names of the fasta headers
+cat *.fasta | sed 's/\/ARTIC\/nanopolish MN908947.3/\/2020/'| sed 's/>/>SARS-CoV-2\/human\/Zambia\//' > out.fasta
 
 #Bug catching - list all defined variables
 ( set -o posix ; set ) | less
 
 #Works:
 artic minion --normalise 200 --threads 4 --scheme-directory /home/dan/Work/Computer/GitRepos/artic-ncov2019/primer-schemes/ --read-file C1/fastq/C1_barcode01.fastq --fast5-directory /media/dan/Master/WGS/C1_2020-09-09/ --sequencing-summary /media/dan/Master/WGS/C1_2020-09-09/sequencing_summary_FAO22552_3fe407a1.txt SARS-CoV-2/V3 29
-
-artic minion --normalise 200 --threads 4 --scheme-directory /home/dan/Work/Computer/GitRepos/artic-ncov2019/primer-schemes/ --read-file C1_barcode01.fastq --fast5-directory /media/dan/Master/WGS/C1_2020-09-09/ --sequencing-summaMaking subdirectory 29GS/C1_2020-09-09//sequencing_summary_FAO22552_3fe407a1.txt SARS-CoV-2/V3 29
-
-
