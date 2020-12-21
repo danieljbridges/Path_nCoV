@@ -2,7 +2,9 @@ name: ncov
 channels:
   - conda-forge
   - bioconda
+  - defaults
 dependencies:
+  - igv
   - nextflow
   - bedtools
   - scikit-allel
