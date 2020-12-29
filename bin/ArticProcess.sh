@@ -140,7 +140,7 @@ fi
 
 #Determine if the files, directories etc exist 
 #Find the name of the sequencing summary
-SEQUENCINGSUMMARY="$RAWDATADIR/`ls $RAWDATADIR | grep sequencing_summary`"
+SEQUENCINGSUMMARY="$RAWDATADIR/`ls $RAWDATADIR | grep sequencing_summary.txt | grep -v tmp`"
 present $SEQUENCINGSUMMARY "f"
 
 #Enter default values if parameter not defined
@@ -234,7 +234,7 @@ if [ $ARTICMINION = 1 ] ; then
         FASTQLENGTH=`wc -l $FILE | sed s/$FILE//`  
         
         #Remove files that have not got enough data
-        if [ $FASTQLENGTH -gt 200 ] ; then
+        if [ $FASTQLENGTH -gt 1000 ] ; then
             echo -e "\n\n Processing barcode number $BARCODE, Sample $SAMPLENAME \n"
             #Run processing scheme
             if [ $MEDAKA = 1 ] ; then

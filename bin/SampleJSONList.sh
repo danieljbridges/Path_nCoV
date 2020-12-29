@@ -98,6 +98,11 @@ until [ $NUMBARCODES -lt $COUNT ]; do
     #Pull out the data sequentially by row (FNR)
     SAMPLE=`awk -F"\t" 'FNR == '$COUNT' {print $2}' $INPUTFILE | tr -d '\r'`
     BARCODE=`awk -F"\t" 'FNR == '$COUNT' {print $1}' $INPUTFILE`
+    #Ensure that all barcodes are 2 digit
+    if [ ${#BARCODE} != 2 ]; then
+        BARCODE="0$BARCODE"
+    fi
+    
     printf "    {
       \"name\": \"$SAMPLE ($BARCODE)\",
       \"description\": \"\",
