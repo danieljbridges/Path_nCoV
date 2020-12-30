@@ -140,8 +140,9 @@ fi
 
 #Determine if the files, directories etc exist 
 #Find the name of the sequencing summary
-SEQUENCINGSUMMARY="$RAWDATADIR/`ls $RAWDATADIR | grep sequencing_summary.txt | grep -v tmp`"
+SEQUENCINGSUMMARY="$RAWDATADIR/`ls $RAWDATADIR | grep sequencing_summary | grep -v tmp`"
 present $SEQUENCINGSUMMARY "f"
+
 
 #Enter default values if parameter not defined
 SAMPLES=${SAMPLES:-$RAWDATADIR/Samples.txt}
