@@ -64,9 +64,9 @@ contents_dt = {}
 for r in os.listdir(artic_dir):
     if os.path.isdir(os.path.join(artic_dir, r)) and r.startswith("C"):
         if r == "C02":
-            d = os.path.join(run_dir, "Artic/processed")
+            d = os.path.join(artic_dir, r, "Artic/processed")
         else:
-            d = os.path.join(run_dir, "processed")
+            d = os.path.join(artic_dir, r, "processed")
         n_samples = sum([1 for s in os.listdir(d) 
                          if os.path.isdir(os.path.join(d, s))])
         contents_dt[r] = n_samples
