@@ -5,6 +5,7 @@
 
 import os
 import sys
+import subprocess
 import pandas as pd
 import numpy as np
 
@@ -294,3 +295,4 @@ def calc_avg_seq_depth(fastq_fn, genome_length):
     cmd = "cat %s | paste - - - - | cut -f2 | tr -d '\n' | wc -c" % fastq_fn
     total_bp = int(subprocess.check_output(cmd, shell=True))
     return total_bp / genome_length
+
