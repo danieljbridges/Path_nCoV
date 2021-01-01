@@ -61,25 +61,25 @@ print("Done.")
 print("")
 
 
-# EXAMINE CONTENTS
-# print("Examining directory contents...")
-# contents_dt = {}
-# for r in os.listdir(artic_dir):
-#     if os.path.isdir(os.path.join(artic_dir, r)) and r.startswith("C"):
-#         if r == "C02":
-#             d = os.path.join(artic_dir, r, "Artic/processed")
-#         else:
-#             d = os.path.join(artic_dir, r, "processed")
-#         n_samples = sum([1 for s in os.listdir(d) 
-#                          if os.path.isdir(os.path.join(d, s))])
-#         contents_dt[r] = n_samples
-# print("  Run\tNo. samples")
-# for d, n in contents_dt.items():
-#     print("  %s\t%d" % (d, n))
-# print("  Total runs: %d" % len(contents_dt.keys()))
-# print("  Total samples: %d" % sum(contents_dt.values()))
-# print("Done.")
-# print("")
+EXAMINE CONTENTS
+print("Examining directory contents...")
+contents_dt = {}
+for r in os.listdir(artic_dir):
+    if os.path.isdir(os.path.join(artic_dir, r)) and r.startswith("C"):
+        if r == "C02":
+            d = os.path.join(artic_dir, r, "Artic/processed")
+        else:
+            d = os.path.join(artic_dir, r, "processed")
+        n_samples = sum([1 for s in os.listdir(d) 
+                         if os.path.isdir(os.path.join(d, s))])
+        contents_dt[r] = n_samples
+print("  Run\tNo. samples")
+for d, n in contents_dt.items():
+    print("  %s\t%d" % (d, n))
+print("  Total runs: %d" % len(contents_dt.keys()))
+print("  Total samples: %d" % sum(contents_dt.values()))
+print("Done.")
+print("")
 
 
 # COMPUTE GISAID STATISTICS
@@ -97,7 +97,7 @@ for r in os.listdir(artic_dir):
     if os.path.isdir(run_dir) and r.startswith("C"):
         if r == "C02":
             d = os.path.join(run_dir, "Artic/processed")
-            slist_fn = os.path.join(rampart_dir, "%s_Arctic_SList.txt" % r)
+            slist_fn = os.path.join(rampart_dir, "%s_Artic_SList.txt" % r)
         else:
             d = os.path.join(run_dir, "processed")
             slist_fn = os.path.join(rampart_dir, "%s_SList.txt" % r)
@@ -112,7 +112,7 @@ for r in os.listdir(artic_dir):
             # Print progress
             sys.stdout.write("\r")
             sys.stdout.flush()
-            sys.stdout.write("  %s: %d/%d" % (r, i+1, n_total))
+            sys.stdout.write("  %s %d/%d" % (r, i+1, n_total))
             
             # Define sample directory
             sample_dir = os.path.join(d, s)
@@ -137,8 +137,11 @@ for r in os.listdir(artic_dir):
             
             # Calc. sequencing depth from .fastq
             b_fn = os.path.join(d.replace("processed", "fastq"), "C%d_barcode%.2d.fastq" % (int(r[1:]), b))
-            sequencing_depth_avg_fastq = calc_avg_seq_depth(b_fn, genome_length=stats_dt["ref_genome_length"])
-            stats_dt.update({"sequencing_depth_avg_fastq": sequencing_depth_avg_fastq})
+            try:
+                sequencing_depth_avg_fastq = calc_avg_seq_depth(b_fn, genome_length=stats_dt["ref_genome_length"])
+                stats_dt.update({"sequencing_depth_avg_fastq": sequencing_depth_avg_fastq})
+            except:
+                stats_dt.update({"sequencing_depth_avg_fastq": 0})
             
             # Store
             dts.append(stats_dt)
