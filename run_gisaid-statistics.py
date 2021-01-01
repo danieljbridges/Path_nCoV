@@ -49,7 +49,7 @@ print("")
 # PREPARE DIRECTORIES
 print("Preparing directories...")
 artic_dir = os.path.join(data_dir, "3_Artic_Output")
-output_dir = os.path.join(data_dir, "5_GISAID")
+output_dir = os.path.join("5_GISAID")
 if not os.path.isdir(output_dir):
     os.makedirs(output_dir)
 print("  Artic directory: %s" % artic_dir)
@@ -63,7 +63,10 @@ print("Examining directory contents...")
 contents_dt = {}
 for r in os.listdir(artic_dir):
     if os.path.isdir(os.path.join(artic_dir, r)) and r.startswith("C"):
-        d = os.path.join(artic_dir, r, "processed")
+        if r == "C02":
+            d = os.path.join(run_dir, "Artic/processed")
+        else:
+            d = os.path.join(run_dir, "processed")
         n_samples = sum([1 for s in os.listdir(d) 
                          if os.path.isdir(os.path.join(d, s))])
         contents_dt[r] = n_samples
@@ -83,24 +86,25 @@ print("Computing GISAID statistics...")
 dts = []
 
 # Iterate over runs
-print("  Run  Samples")
+print("  Run  Samples complete")
 for r in os.listdir(artic_dir):
     
     # Define run directory
     run_dir = os.path.join(artic_dir, r)
     if os.path.isdir(run_dir) and r.startswith("C"):
-        d = os.path.join(run_dir, "processed")
+        if r == "C02":
+            d = os.path.join(run_dir, "Artic/processed")
+        else:
+            d = os.path.join(run_dir, "processed")
         
         # Iterate over samples
-        done = ""
         n_total = len(os.listdir(d))
         for i, s in enumerate(os.listdir(d)):
             
             # Print progress
-            done += "  %s" % s
             sys.stdout.write("\r")
             sys.stdout.flush()
-            sys.stdout.write("  %s%s (%d/%d)" % (r, done, i+1, n_total))
+            sys.stdout.write("  %s: %d/%d" % (r, i+1, n_total))
             
             # Define sample directory
             sample_dir = os.path.join(d, s)
