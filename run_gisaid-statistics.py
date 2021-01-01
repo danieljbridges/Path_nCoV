@@ -61,9 +61,11 @@ print("Done.")
 print("")
 
 
-EXAMINE CONTENTS
+# EXAMINE CONTENTS
 print("Examining directory contents...")
 contents_dt = {}
+rs = os.listdir(artic_dir)
+rs.remove("C02")
 for r in os.listdir(artic_dir):
     if os.path.isdir(os.path.join(artic_dir, r)) and r.startswith("C"):
         if r == "C02":
@@ -90,7 +92,7 @@ dts = []
 
 # Iterate over runs
 print("  Run  Samples complete")
-for r in os.listdir(artic_dir):
+for r in rs:
     
     # Define run directory
     run_dir = os.path.join(artic_dir, r)
@@ -103,8 +105,12 @@ for r in os.listdir(artic_dir):
             slist_fn = os.path.join(rampart_dir, "%s_SList.txt" % r)
             
         # Load sample-barcode map
-        sample_dt = load_sample_list(slist_fn)
-        
+        try:
+            sample_dt = load_sample_list(slist_fn)
+        except:
+            print("Failed to load sample list for run %s" % r)
+
+
         # Iterate over samples
         n_total = len(os.listdir(d))
         for i, s in enumerate(os.listdir(d)):
