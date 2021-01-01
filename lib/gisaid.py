@@ -68,6 +68,31 @@ def load_coverage_files(sample_dir):
     return df
 
 
+def load_sample_list(fn):
+    """
+    Load Sample List into Python
+    as a dictionary which maps sample
+    names to barcodes
+    
+    Parameters
+        fn : str
+            Path to SampleList file.
+    
+    Returns
+        dt : dict
+            Maps sample name to barcode.
+    
+    """
+    
+    with open(fn, "r") as f:
+        dt = {}
+        for line in f:
+            barcode, sample = line.rstrip().split("\t")
+            dt[sample] = int(barcode)
+    
+    return dt
+
+
 def get_contig_lengths(cov):
     """
     Given a coverage profile, return an array
@@ -190,6 +215,7 @@ def calc_gisaid_stats(df, depth_threshold=10):
         "assembly_coverage_depth": coverage_depth,
         "number_base_pairs": number_base_pairs,
         "consensus_genome_length": consensus_genome_length,
+        "ref_genome_length": genome_length,
         "mean_contig_length": mean_contig_length,
         "N50": n50_contig_length
     }
@@ -242,3 +268,29 @@ def calc_ns_per_100kbp(consensus_fasta, verbose=True):
         print("Ns per 100kbp: %.02f" % ns_per_100kbp)
         
     return ns_per_100kbp
+
+
+def calc_avg_seq_depth(fastq_fn, genome_length):
+    """
+    Calculate average sequencing depth, given
+    a fastq file named `fastq_fn` and a
+    `genome_length`
+    
+    Parameters
+        fastq_fn : str
+            Path to fastq file.
+        genome_length : int
+            Length of the genome from which the
+            reads in the fastq were generated.
+            
+    Returns
+        _ : int
+            Average sequencing depth given all
+            the data within the fastq.
+    
+    """
+    
+    # Code golf style
+    cmd = "cat %s | paste - - - - | cut -f2 | tr -d '\n' | wc -c" % fastq_fn
+    total_bp = int(subprocess.check_output(cmd, shell=True))
+    return total_bp / genome_length
