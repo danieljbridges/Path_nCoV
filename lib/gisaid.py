@@ -88,8 +88,9 @@ def load_sample_list(fn):
     with open(fn, "r") as f:
         dt = {}
         for line in f:
-            barcode, sample = line.rstrip().split("\t")
-            dt[sample] = int(barcode)
+            if not line.isspace():
+                barcode, sample = line.rstrip().split("\t")
+                dt[sample] = int(barcode)
     
     return dt
 
