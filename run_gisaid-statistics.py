@@ -61,7 +61,7 @@ print("Done.")
 print("")
 
 
-EXAMINE CONTENTS
+# EXAMINE CONTENTS
 print("Examining directory contents...")
 contents_dt = {}
 rs = os.listdir(artic_dir)
