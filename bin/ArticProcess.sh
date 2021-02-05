@@ -357,16 +357,18 @@ fi
 if [ $S5 = 1 ] ; then
     printf "\n###### ${BLUE}Step 5: Generating statistics on sequencing. ${NC} ######\n\n"
     #Run 
-    python run_gisaid-statistics.py -b /home/dan/TESTWGS
+    run_gisaid-statistics.py -b $BASEFOLDER
     echo -e "\n###### ${GREEN}Step 5: Sequencing statistics compiled. ${NC} ######\n\n"
 else
     printf "###### ${GREEN}Step 5: Skipping generating sequencing statistics${NC} ######\n\n"
 fi
 
-
 exit
 
 ######################## NOTES ##########
+#TO DO
+#Create Samplejson list from the csv file
+
 
 # Concatenate and tidy up the names of the fasta headers
 cat *.fasta | sed 's/\/ARTIC\/nanopolish MN908947.3/\/2020/'| sed 's/>/>SARS-CoV-2\/human\/Zambia\//' > out.fasta

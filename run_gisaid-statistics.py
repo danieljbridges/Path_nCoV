@@ -36,6 +36,7 @@ try:
     opts, args = getopt.getopt(sys.argv[1:], ":d:")
 except getopt.GetoptError:
     print("  Error parsing options.")
+    sys.exit(2)
 for opt, value in opts:
     if opt == "-d":
         data_dir = value
@@ -65,13 +66,9 @@ print("")
 print("Examining directory contents...")
 contents_dt = {}
 rs = os.listdir(artic_dir)
-rs.remove("C02")
 for r in os.listdir(artic_dir):
     if os.path.isdir(os.path.join(artic_dir, r)) and r.startswith("C"):
-        if r == "C02":
-            d = os.path.join(artic_dir, r, "Artic/processed")
-        else:
-            d = os.path.join(artic_dir, r, "processed")
+        d = os.path.join(artic_dir, r, "processed")
         n_samples = sum([1 for s in os.listdir(d) 
                          if os.path.isdir(os.path.join(d, s))])
         contents_dt[r] = n_samples
@@ -97,12 +94,8 @@ for r in rs:
     # Define run directory
     run_dir = os.path.join(artic_dir, r)
     if os.path.isdir(run_dir) and r.startswith("C"):
-        if r == "C02":
-            d = os.path.join(run_dir, "Artic/processed")
-            slist_fn = os.path.join(rampart_dir, "%s_Artic_SList.txt" % r)
-        else:
-            d = os.path.join(run_dir, "processed")
-            slist_fn = os.path.join(rampart_dir, "%s_SList.txt" % r)
+        d = os.path.join(run_dir, "processed")
+        slist_fn = os.path.join(rampart_dir, "%s_SList.txt" % r)
             
         # Load sample-barcode map
         try:
