@@ -73,7 +73,7 @@ function check_var {
 }
 
 #==============Recognise any CLI options==================
-while getopts 'hp:b:r:n:m:12345' opt; do
+while getopts 'hp:b:r:n:m12345' opt; do
   case "$opt" in
     b)
       BASEFOLDER=$OPTARG
@@ -162,8 +162,8 @@ S5=${S5:- 1}
 #################################################
 #Check artic environment present
 if [ $(which artic | wc -l) = 0 ] ; then
-    printf "${RED}ERROR:${NC} artic environment not present. Please activate the appropriate environment:\n\n    
-    conda activate artic-ncov2019\n    
+    printf "${RED}ERROR:${NC} artic environment not present. Please activate the appropriate environment e.g.:\n\n    
+    conda activate artic\n    
     \nExiting script\n"
     exit 
 fi
@@ -194,12 +194,11 @@ if [ $S1 = 1 ] ; then
     fi
     FASTQRAW="$RAWDATADIR/fastq_pass"
     present $FASTQRAW "d"
-    #Find the name of the sequencing summary
 fi
 
 ###############
-#Guppy Plex (step 2)
-if [ $S2 = 1 ] ; then
+#Guppy Plex (step 2) and step 3 identical
+if [ $S2 = 1 ] || [ $S3 = 1 ]; then
     #Check primers and determine max and min sizes and primer scheme for analysis
     PRIMERS=${PRIMERS:- 1}
     check_var $PRIMERS "-p (primers)"
@@ -222,19 +221,12 @@ fi
 #Artic processing (step 3)
 if [ $S3 = 1 ] ; then
     MEDAKA=${MEDAKA:- 0}
-    if [ $PRIMERS = "Sanger" ] ; then
-        PRIMERSCHEME=SARS-CoV-2/V1
-    elif [ $PRIMERS = "Artic" ] ; then
-        PRIMERSCHEME=SARS-CoV-2/V3
-    else
-        Help
-        printf "${RED}ERROR:${NC} Unrecognised primer scheme\n\n"
-        exit
-    fi
+    
     #Check primer scheme supplied
     PRIMERDIR=${PRIMERDIR:- 1}
-    PRIMERDIR=`realpath $PRIMERDIR`
     check_var $PRIMERDIR "-r (primer scheme location)"
+    PRIMERDIR=`realpath $PRIMERDIR`
+    
     #Identify csv file
     SAMPLEFILE="$BASEFOLDER/2_SampleList_and_Rampart/Samples_Sequenced.csv"
     present $SAMPLEFILE "f"
@@ -290,33 +282,37 @@ fi
 if [ $S3 = 1 ] ; then
     printf "\n###### ${BLUE}Step 3: Importing samplenames and processing with artic minion command.${NC} ######\n\n"
     
-    #Ensure that there are the same number of entries in all the arrays
-    readarray -t S3FILES < <(find $ARTIC_OUT -name 'C01_barcode[0-9]*.fastq')
-    COUNT=0
-    
     #Change directory
     cd $ARTIC_OUT/fastq/
+    #Set the count
+    COUNT=0
     
-    if [ ${#S3FILES[@]} == ${#BARCODES[@]} ] && [ ${#BARCODES[@]} == ${#SAMPLES[@]} ] ; then 
-        for FILE in $RUNNAME\_barcode[0-9]*.fastq ; do 
-            #Import samplenames / barcodes and then run the processing
-            BARCODE=`printf "%02d" ${BARCODES[$COUNT]}` #pad left
-            SAMPLENAME=${SAMPLES[$COUNT]}
-            #FILE=$(echo ${ARTIC_OUT}/fastq/${RUNNAME}_barcode${BARCODE}.fastq)
-            (( COUNT += 1 ))
-            echo $FILE
+    #Cycle through each barcode and look for the matching file
+    for i in "${BARCODES[@]}"; do 
+        #Identify correct samplenames / barcodes and then run the processing
+        BARCODE=`printf "%02.f" ${BARCODES[$COUNT]}` #pad left using float otherwise 0 preceeding = octal number
+        SAMPLENAME=${SAMPLES[$COUNT]}
+        FILE="${RUNNAME}_barcode${BARCODE}.fastq"
+        
+        #Increment count
+        (( COUNT += 1 ))
+        
+        #Check that there is a file for this barcode (NTC may not have any reads)
+        if [ ! -f $FILE ] ; then
+            printf "${RED}WARNING:${NC} $FILE is not present - moving to next sample.\n"
+        else
             #Ensure fastq file is not empty
             FASTQLENGTH=`wc -l $FILE | sed s/$FILE//`  
             
             #Remove files that have not got enough data
             if [ $FASTQLENGTH -gt 1000 ] ; then
-                echo -e "\n\n Processing barcode number $BARCODE, Sample $SAMPLENAME \n"
+                echo -e "\n\n \n${ORANGE} Processing barcode number $BARCODE, Sample $SAMPLENAME from file $FILE \n${NC}"
                 #Run processing scheme
                 if [ $MEDAKA = 1 ] ; then
-                    printf "${GREEN}Using Medaka pipeline${NC}\n"
-                    artic minion --medaka --normalise 200 --threads 24 --scheme-directory $PRIMERDIR --read-file $FILE nCoV-2019/V1 $SAMPLENAME
+                    printf "\n${GREEN}Using Medaka pipeline${NC}\n"
+                    artic minion --medaka --normalise 200 --threads 24 --scheme-directory $PRIMERDIR --read-file $FILE $PRIMERSCHEME $SAMPLENAME
                 else
-                    printf "${GREEN}Using Nanopolish pipeline${NC}\n"
+                    printf "\n${GREEN}Using Nanopolish pipeline${NC}\n"
                     artic minion --normalise 200 --threads 24 --scheme-directory $PRIMERDIR --read-file $FILE --fast5-directory $RAWDATADIR --sequencing-summary $SEQUENCINGSUMMARY $PRIMERSCHEME $SAMPLENAME
                 fi
                 
@@ -334,13 +330,8 @@ if [ $S3 = 1 ] ; then
                 printf "${RED}ERROR:${NC} Too few reads (n = $FASTQLENGTH) in File $FILE (Barcode $BARCODE, Sample $SAMPLENAME).
                 Aborting processing this file\n"
             fi
-        done
-    else
-        printf "${RED}ERROR:${NC}Sample, Barcode and File arrays do not match - please manually check"
-        printf '%s\n' "Samples: /n ${SAMPLES[@]}"
-        printf '%s\n' "Barcodes /n ${BARCODES[@]}"
-        printf '%s\n' "Step 3 FILES: /n ${S3FILES[@]}"
-    fi
+        fi
+    done
     echo -e "\n###### ${GREEN}Step 3: artic minion completed. ${NC} ######\n\n"
 else
     printf "###### ${GREEN}Step 3: Skipping artic minion step${NC} ######\n\n"
@@ -359,12 +350,12 @@ if [ $S4 = 1 ] ; then
     
     echo -e "\n###### ${GREEN}Step 4: consensus sequences compiled. ${NC} ######\n\n"
 else
-    printf "###### ${GREEN}Step 4: Skipping consensus sequences${NC} ######\n\n"
+    printf "###### ${GREEN}Step 4: Skipping consensus sequences ${NC} ######\n\n"
 fi
 
 #STEP 5: Generate GISAID stats
 if [ $S5 = 1 ] ; then
-    printf "\n###### ${BLUE}Step 5: Generating statistics on sequencing.${NC} ######\n\n"
+    printf "\n###### ${BLUE}Step 5: Generating statistics on sequencing. ${NC} ######\n\n"
     #Run 
     python run_gisaid-statistics.py -b /home/dan/TESTWGS
     echo -e "\n###### ${GREEN}Step 5: Sequencing statistics compiled. ${NC} ######\n\n"
