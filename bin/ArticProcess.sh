@@ -357,7 +357,7 @@ fi
 if [ $S5 = 1 ] ; then
     printf "\n###### ${BLUE}Step 5: Generating statistics on sequencing. ${NC} ######\n\n"
     #Run 
-    run_gisaid-statistics.py -b $BASEFOLDER
+    run_gisaid-statistics.py -d $BASEFOLDER
     echo -e "\n###### ${GREEN}Step 5: Sequencing statistics compiled. ${NC} ######\n\n"
 else
     printf "###### ${GREEN}Step 5: Skipping generating sequencing statistics${NC} ######\n\n"
