@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # Compute statistics for GISAID submission
 # ----------------------------------------
 #
