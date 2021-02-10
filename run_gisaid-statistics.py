@@ -86,11 +86,11 @@ print("")
 print("Checking sample metadata...")
 sample_df = pd.read_csv(os.path.join(rampart_dir, "Samples_Sequenced.csv"))
 print("  Total runs: %d" % sample_df["ExpID"].unique().shape[0])
-print("  Total samples: %d" % sample_df["Sample ID"].unique().shape[0])
-print("  Unique samples: %d" % sample_df["UniqueID"].unique().shape[0])
-print("  Barcodes used: %d" % sample_df["Barcode ID"].unique().shape[0])
+print("  Total samples: %d" % sample_df["UniqueID"].unique().shape[0])
+print("  Unique samples: %d" % sample_df["Sample ID"].unique().shape[0])
+print("  Barcodes used: %d" % sample_df["Barcode"].unique().shape[0])
 # Map from Unique ID to barcode ID
-sample_dt = { row["UniqueID"]: row["Barcode ID"] for _, row in sample_df.iterrows() }
+sample_dt = { row["UniqueID"]: row["Barcode"] for _, row in sample_df.iterrows() }
 print("Done.")
 print("")
 
@@ -141,7 +141,7 @@ for r in rs:
             stats_dt.update({"ns_per_100kbp": ns_per_100kbp})
             
             # Calc. sequencing depth from .fastq
-            b_fn = os.path.join(d.replace("processed", "fastq"), "C%d_barcode%.2d.fastq" % (int(r[1:]), b))
+            b_fn = os.path.join(d.replace("processed", "fastq"), "C%02d_barcode%02d.fastq" % (int(r[1:]), b))
             try:
                 sequencing_depth_avg_fastq = calc_avg_seq_depth(b_fn, genome_length=stats_dt["ref_genome_length"])
                 stats_dt.update({"sequencing_depth_avg_fastq": sequencing_depth_avg_fastq})
