@@ -10,11 +10,29 @@ set -e #exit whenever a command exits with a non zero status
 set -u #treat undefined variables as errors
 set -o pipefail #pipe will be considered successful if all the commands are executed without errors
 
+VERSION="0.3.2"
+#ANSI escape codes: 
+#Black        0;30     Dark Gray     1;30
+#Red          0;31     Light Red     1;31
+#Green        0;32     Light Green   1;32
+#Brown/Orange 0;33     Yellow        1;33
+#Blue         0;34     Light Blue    1;34
+#Purple       0;35     Light Purple  1;35
+#Cyan         0;36     Light Cyan    1;36
+#Light Gray   0;37     White         1;37
+LG='\033[1;32m'
+RED='\033[0;31m'
+GREEN='\033[0;32m' 
+BLUE='\033[0;34m' 
+ORANGE='\033[0;33m' 
+NC='\033[0m' # No Color
+
 #==============FUNCTIONS==================
 
 function Help {
    # Display Help
-   echo -e "This script chains together the various processes of the artic network bioinformatic pipeline for each sample. It assumes the following data folder structure
+   printf "${RED}##### HELP NOTES: #####${NC}
+    This script chains together the various processes of the artic network bioinformatic pipeline for each sample. It assumes the following data folder structure
    
    basefolder/1_Raw                         Raw data output from minion
    basefolder/2_SampleList_and_Rampart      List of all samples
@@ -26,13 +44,14 @@ function Help {
       
     Mandatory args:
     -b      Basefolder for all inputs and outputs - please use an absolute path
-    -n      Runname to prefix output files, folder names etc
+    -r      Runname to prefix output files, folder names etc
 
     Optional args:
     -h      Print this help
     -m      Process using the medaka pipeline rather than with nanopolish
     -p      Primers used during PCR [Sanger | Artic]
-    -r      Location directory of the primer scheme used
+    -s      Location directory of the primer scheme used
+    -v      Version
 
     Optional steps to omit:
     -1      Omit Step 1 (guppy_barcoder)
@@ -46,12 +65,12 @@ function Help {
 function present {
     if [ $2 = 'd' ] ; then
         if [ ! -d $1 ] ; then
-            printf "${RED}ERROR:${NC} $1 is not present \nExiting script."
+            printf "\n${RED}ERROR:${NC} $1 is not present\nExiting script.\n"
             exit
         fi
     elif [ $2 = 'f' ] ; then
         if [ ! -f $1 ] ; then
-            printf "${RED}ERROR:${NC} $1 is not present \nExiting script."
+            printf "\n${RED}ERROR:${NC} $1 is not present \nExiting script.\n"
             exit
         fi
     fi
@@ -67,21 +86,25 @@ function check_mkdir {
 function check_var {
     if [ $1 = 1 ] ; then
         Help
-        printf "${RED}ERROR:${NC} $2 variable not supplied. See Help message above.\n Exiting script\n\n"
+        printf "\n${RED}ERROR:${NC} $2 variable not supplied. See Help message above.\n Exiting script\n\n"
         exit   
     fi
 }
 
 #==============Recognise any CLI options==================
-while getopts 'hp:b:r:n:m12345' opt; do
+while getopts 'vhp:b:r:s:m12345' opt; do
   case "$opt" in
+    v)
+      printf "${ORANGE}ArticProcess.sh Version $VERSION ${NC}\n"
+      exit
+      ;;
     b)
       BASEFOLDER=$OPTARG
       ;;
     p)
       PRIMERS=$OPTARG
       ;;
-    r)
+    s)
       PRIMERDIR=$OPTARG
       ;;
     h)
@@ -106,7 +129,7 @@ while getopts 'hp:b:r:n:m12345' opt; do
     5)
       S5=0
       ;;
-    n)
+    r)
       RUNNAME=$OPTARG
       ;;
     \?)
@@ -123,23 +146,8 @@ done
 shift $((OPTIND -1))
 
 #==============CHECK ALL VARIABLES AND REQUIREMENTS ARE MET==================
-#ANSI escape codes: 
-#Black        0;30     Dark Gray     1;30
-#Red          0;31     Light Red     1;31
-#Green        0;32     Light Green   1;32
-#Brown/Orange 0;33     Yellow        1;33
-#Blue         0;34     Light Blue    1;34
-#Purple       0;35     Light Purple  1;35
-#Cyan         0;36     Light Cyan    1;36
-#Light Gray   0;37     White         1;37
-RED='\033[0;31m'
-GREEN='\033[0;32m' 
-BLUE='\033[0;34m' 
-ORANGE='\033[0;33m' 
-NC='\033[0m' # No Color
-
 #Create a space between cmd
-printf "\n${ORANGE}##### Running ArticProcess.sh ##### ${NC}\n"
+printf "\n${ORANGE}##### Running ArticProcess.sh Version $VERSION ##### ${NC}\n"
 
 #################################################
 #Enter default values if parameter not defined or build from exisiting args
@@ -151,7 +159,7 @@ BASEFOLDER=`realpath $BASEFOLDER`
 present $BASEFOLDER "d"
 
 RUNNAME=${RUNNAME:- 1}
-check_var $RUNNAME "-n (runname)"
+check_var $RUNNAME "-r (runname)"
 
 S1=${S1:- 1}
 S2=${S2:- 1}
@@ -224,37 +232,49 @@ if [ $S3 = 1 ] ; then
     
     #Check primer scheme supplied
     PRIMERDIR=${PRIMERDIR:- 1}
-    check_var $PRIMERDIR "-r (primer scheme location)"
+    check_var $PRIMERDIR "-s (primer scheme location)"
     PRIMERDIR=`realpath $PRIMERDIR`
     
     #Identify csv file
     SAMPLEFILE="$BASEFOLDER/2_SampleList_and_Rampart/Samples_Sequenced.csv"
     present $SAMPLEFILE "f"
-    #Read in Samples
-    readarray -t SAMPLES < <(awk -F"," '$7 ~ /'$RUNNAME'/ {print$2}' $SAMPLEFILE)
-    #Check for sample duplicates
-    if [ `printf '%s\n' "${SAMPLES[@]}" | awk '!($0 in seen){seen[$0];next} 1' | wc -l` -gt 0 ] ; then
-        printf "${RED}ERROR:${NC} The following duplicate samples are present in $SAMPLEFILE file\n"
-        printf '%s\n' "${SAMPLES[@]}" | awk '!($0 in seen){seen[$0];next} 1'
+    #Check if all sample IDs are unique in the samples file
+    readarray -t IDS < <(awk -F"," 'NR>1 {print$2}' $SAMPLEFILE | sort | uniq -d)
+    if [ ${#IDS[@]} -gt 0 ]; then
+        printf "${RED}ERROR:${NC} The following duplicate samples exist in $SAMPLEFILE. 
+        Please correct so that every uniqueID (column 2) is unique to the entire list.\n"
+        printf '%s\n' "${IDS[@]}"
         exit
     fi
+    
+    #Read in Samples
+    readarray -t SAMPLES < <(awk -F"," '$7 ~ /'$RUNNAME'/ {print$2}' $SAMPLEFILE)
+    
     #Read in barcodes
     readarray -t BARCODES < <(awk -F"," '$7 ~ /'$RUNNAME'/ {print$1}' $SAMPLEFILE)
-    #Check for barcode duplicates
+    #Check for barcode duplicates within the run
     if [ `printf '%s\n' "${BARCODES[@]}" | awk '!($0 in seen){seen[$0];next} 1' | wc -l` -gt 0 ] ; then
-        printf "${RED}ERROR:${NC} The following duplicate barcodes are present in $SAMPLEFILE file\n"
+        printf "${RED}ERROR:${NC} The following duplicate barcodes are present in $SAMPLEFILE file for $RUNNAME run:\n"
         printf '%s\n' "${BARCODES[@]}" | awk '!($0 in seen){seen[$0];next} 1'
         exit
     fi
 fi
+#Define logfile output
+LOGFOLDER="$BASEFOLDER/Logs"
+check_mkdir $LOGFOLDER
+LOG=$(echo "$LOGFOLDER/${RUNNAME}.log")
 
 printf "${GREEN}CHECKED:${NC}All required programs, files and locations are present.
 ${GREEN}CHECKED:${NC}No errors in sample list.\n"
 
 #==============THE SCRIPT==================Se   
+#Log everything
+{
 #STEP 1: Run the guppy barcoder to demultiplex into separate barcodes
 if [ $S1 = 1 ] ; then
     printf "\n###### ${BLUE}Step 1: Running the guppy_barcoder to demultiplex the FASTQ files.${NC} ######\n\n"
+    printf "${LG}guppy_barcoder --require_barcodes_both_ends -i $FASTQRAW -s $ARTIC_OUT/fastq --arrangements_files barcode_arrs_nb12.cfg barcode_arrs_nb24.cfg${NC}\n"
+    
     guppy_barcoder --require_barcodes_both_ends -i $FASTQRAW -s $ARTIC_OUT/fastq --arrangements_files "barcode_arrs_nb12.cfg barcode_arrs_nb24.cfg"
     printf "\n###### ${GREEN}Step 1: guppy_barcoder completed. ${NC} ######\n\n"
 else
@@ -271,6 +291,7 @@ if [ $S2 = 1 ] ; then
     
     #Run through the demuxed barcodes to combine into single fastq files
     for S2DIR in "${S2DIRS[@]}" ; do
+        printf "${LG}artic guppyplex --skip-quality-check --min-length $MIN --max-length $MAX --directory $S2DIR --prefix $RUNNAME ${NC}\n"
        artic guppyplex --skip-quality-check --min-length $MIN --max-length $MAX --directory $S2DIR --prefix $RUNNAME
     done
     echo -e "\n###### ${GREEN}Step 2: guppyplex completed. ${NC} ######\n\n"
@@ -310,9 +331,11 @@ if [ $S3 = 1 ] ; then
                 #Run processing scheme
                 if [ $MEDAKA = 1 ] ; then
                     printf "\n${GREEN}Using Medaka pipeline${NC}\n"
+                    printf "${LG}artic minion --medaka --normalise 200 --threads 24 --scheme-directory $PRIMERDIR --read-file $FILE $PRIMERSCHEME $SAMPLENAME ${NC}\n"
                     artic minion --medaka --normalise 200 --threads 24 --scheme-directory $PRIMERDIR --read-file $FILE $PRIMERSCHEME $SAMPLENAME
                 else
                     printf "\n${GREEN}Using Nanopolish pipeline${NC}\n"
+                    printf "${LG}artic minion --normalise 200 --threads 24 --scheme-directory $PRIMERDIR --read-file $FILE --fast5-directory $RAWDATADIR --sequencing-summary $SEQUENCINGSUMMARY $PRIMERSCHEME $SAMPLENAME${NC}\n"
                     artic minion --normalise 200 --threads 24 --scheme-directory $PRIMERDIR --read-file $FILE --fast5-directory $RAWDATADIR --sequencing-summary $SEQUENCINGSUMMARY $PRIMERSCHEME $SAMPLENAME
                 fi
                 
@@ -355,20 +378,47 @@ fi
 
 #STEP 5: Generate GISAID stats
 if [ $S5 = 1 ] ; then
-    printf "\n###### ${BLUE}Step 5: Generating statistics on sequencing. ${NC} ######\n\n"
+    printf "\n###### ${BLUE}Step 5: Generating statistics on sequencing and identify sequences for upload. ${NC} ######\n\n"
     #Run 
     run_gisaid-statistics.py -d $BASEFOLDER
+    
+    #cd "$BASEFOLDER/5_GISAID"
+    #Ensure only a single gisaid output file
+    #if [ `find ./ -name '*gisaid.csv' -printf "%f\n" | wc -l` -ne 1 ] ; then
+    #    printf "\n${RED}ERROR:${NC} Multiple gisaid files. Please delete all, but the one you wish to use\n"
+    #    exit
+    #fi
+    
+    #Filter the list of all sequences to only retain the correct ones
+    #seqkit grep -n -f FASTAHeadersFilter.csv all.fasta -o Filtered.fasta
+
     echo -e "\n###### ${GREEN}Step 5: Sequencing statistics compiled. ${NC} ######\n\n"
 else
     printf "###### ${GREEN}Step 5: Skipping generating sequencing statistics${NC} ######\n\n"
 fi
 
+} | tee $LOG
+
 exit
 
 ######################## NOTES ##########
 #TO DO
+#Retain only the sequences that are final
+#1. Filter to final multifasta
+seqkit grep -n -f FASTAHeadersFilter.csv all.fasta > Filtered.fasta
+#2. Replace headers
+seqkit replace -p "(.+)" -r '{kv}' -K -k FASTAHeadersReplacements.csv Filtered.fasta > Submit.fasta
+
+#perform pangolin lineages on what was created?
+    #GISAID=`find ./ -name '*gisaid.csv' -printf "%f\n"`
+    #readarray -t KEEPERS < <(awk -F"," '$7 ~ /'$RUNNAME'/ {print$2}' $SAMPLEFILE)
+    #readarray -t SAMPLES < <(awk -F"," '$7 ~ /'$RUNNAME'/ {print$2}' $SAMPLEFILE)
+    cd
+
 #Create Samplejson list from the csv file
 
+cat all.fasta | sed s'/\//_/g' | seqkit replace -p "(.+)" -r '{kv}' -K -k Replacements.tsv | seqkit grep -r -p ^SARS > Submission.fa
+# open file | Replace slashes with underscores | Replace fasta header with substitute from Alteryx | Grep for those starting with SARS (changed)
 
 # Concatenate and tidy up the names of the fasta headers
 cat *.fasta | sed 's/\/ARTIC\/nanopolish MN908947.3/\/2020/'| sed 's/>/>SARS-CoV-2\/human\/Zambia\//' > out.fasta
