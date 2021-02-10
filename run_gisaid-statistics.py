@@ -82,6 +82,19 @@ print("Done.")
 print("")
 
 
+# LOAD SAMPLE METADATA
+print("Checking sample metadata...")
+sample_df = pd.read_csv(os.path.join(rampart_dir, "Samples_Sequenced.csv"))
+print("  Total runs: %d" % sample_df["ExpID"].unique().shape[0])
+print("  Total samples: %d" % sample_df["Sample ID"].unique().shape[0])
+print("  Unique samples: %d" % sample_df["UniqueID"].unique().shape[0])
+print("  Barcodes used: %d" % sample_df["Barcode ID"].unique().shape[0])
+# Map from Unique ID to barcode ID
+sample_dt = { row["UniqueID"]: row["Barcode ID"] for _, row in sample_df.iterrows() }
+print("Done.")
+print("")
+
+
 # COMPUTE GISAID STATISTICS
 print("Computing GISAID statistics...")
 
@@ -96,14 +109,6 @@ for r in rs:
     run_dir = os.path.join(artic_dir, r)
     if os.path.isdir(run_dir) and r.startswith("C"):
         d = os.path.join(run_dir, "processed")
-        slist_fn = os.path.join(rampart_dir, "%s_SList.txt" % r)
-            
-        # Load sample-barcode map
-        try:
-            sample_dt = load_sample_list(slist_fn)
-        except:
-            print("Failed to load sample list for run %s" % r)
-
 
         # Iterate over samples
         n_total = len(os.listdir(d))
