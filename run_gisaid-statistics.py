@@ -160,10 +160,71 @@ print("Done.")
 print("")
 
 
+# MERGE WITH SAMPLE LIST
+print("Merging results with sample list...")
+print("  No. samples...")
+print("    ...in sample list: %d" % sample_df.shape[0])
+print("    ...with GISAID statistics: %d" % df.shape[0])
+# Merge
+merged_df = pd.merge(left=df,
+                     right=sample_df,
+                     left_on=["run", "barcode"],
+                     right_on=["ExpID", "Barcode"])
+merged_df.drop(["Barcode", "UniqueID", "ExpID"], 1, inplace=True) # clean columns
+print("    ...after merging: %d" % merged_df.shape[0])
+print("Done.")
+print("")
+
+
+# FILTER FOR SUBMISSION
+print("Removing controls...")
+filtered_df = merged_df.query("Type != 'Control'")
+print("  Samples remaining: %d" % merged_df.shape[0])
+print("Done.")
+print("")
+
+# Remove duplicates
+print("Taking highest depth for duplicate samples...")
+grps = filtered_df.groupby("Sample ID")
+
+l_dfs = []
+print("  {:<8}  {:<8}  {:<10}  {:<4}".format("Sample", "No. dup.", "Keep", "Depth"))
+for n, sdf in grps:
+    n_dup = sdf.shape[0]
+    if n_dup > 1:
+        keep = sdf.sort_values("sequencing_depth_avg", ascending=False).iloc[0]
+        print("  {:<8}  {:<8}  {:<10}  {:<4.1f}".format(n, n_dup, keep["sample"], keep["sequencing_depth_avg"]))
+    else:
+        keep = sdf.iloc[0]
+    l_dfs.append(keep)
+filtered_df = pd.concat(l_dfs, 1).transpose()
+print("  Samples remaining: %d" % filtered_df.shape[0])
+print("Done.")
+print("")
+
+# Remove low quality
+depth_threshold = 50
+breadth_threshold = 0.8
+print("Filtering low quality samples...")
+print("  Average depth >= %dX" % depth_threshold)
+print("  Coverage breadth >= %.f%%" % (100*breadth_threshold))
+filtered_df.query("sequencing_depth_avg >= @depth_threshold" + \
+                  "& sequencing_depth_avg >= @depth_threshold", 
+                  inplace=True)
+print("  Samples remaining: %d" % filtered_df.shape[0])
+print("Done.")
+print("")
+
+# Add `to_submit` column, and write keep list
+keep_list = filtered_df["sample"].values
+merged_df.insert(20, "to_submit", [True if s in keep_list else False for s in merged_df["sample"]])
+
+
 # WRITE RESULTS
 print("Writing results...")
 output_fn = "%s_gisaid.csv" % datetime.datetime.now().strftime("%Y-%m-%d")
-df.to_csv(os.path.join(output_dir, output_fn), index=False)
+merged_df.to_csv(os.path.join(output_dir, output_fn), index=False)
+pd.Series(keep_list).to_csv(os.path.join(output_dir, output_fn.replace("gisaid","inclusion-list")), index=False)
 print("  To: %s" % os.path.join(output_dir, output_fn))
 print("Done.")
 print("")
