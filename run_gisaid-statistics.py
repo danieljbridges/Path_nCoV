@@ -82,6 +82,19 @@ print("Done.")
 print("")
 
 
+# LOAD SAMPLE METADATA
+print("Checking sample metadata...")
+sample_df = pd.read_csv(os.path.join(rampart_dir, "Samples_Sequenced.csv"))
+print("  Total runs: %d" % sample_df["ExpID"].unique().shape[0])
+print("  Total samples: %d" % sample_df["UniqueID"].unique().shape[0])
+print("  Unique samples: %d" % sample_df["Sample ID"].unique().shape[0])
+print("  Barcodes used: %d" % sample_df["Barcode"].unique().shape[0])
+# Map from Unique ID to barcode ID
+sample_dt = { row["UniqueID"]: row["Barcode"] for _, row in sample_df.iterrows() }
+print("Done.")
+print("")
+
+
 # COMPUTE GISAID STATISTICS
 print("Computing GISAID statistics...")
 
@@ -96,14 +109,6 @@ for r in rs:
     run_dir = os.path.join(artic_dir, r)
     if os.path.isdir(run_dir) and r.startswith("C"):
         d = os.path.join(run_dir, "processed")
-        slist_fn = os.path.join(rampart_dir, "%s_SList.txt" % r)
-            
-        # Load sample-barcode map
-        try:
-            sample_dt = load_sample_list(slist_fn)
-        except:
-            print("Failed to load sample list for run %s" % r)
-
 
         # Iterate over samples
         n_total = len(os.listdir(d))
@@ -136,7 +141,7 @@ for r in rs:
             stats_dt.update({"ns_per_100kbp": ns_per_100kbp})
             
             # Calc. sequencing depth from .fastq
-            b_fn = os.path.join(d.replace("processed", "fastq"), "C%d_barcode%.2d.fastq" % (int(r[1:]), b))
+            b_fn = os.path.join(d.replace("processed", "fastq"), "C%02d_barcode%02d.fastq" % (int(r[1:]), b))
             try:
                 sequencing_depth_avg_fastq = calc_avg_seq_depth(b_fn, genome_length=stats_dt["ref_genome_length"])
                 stats_dt.update({"sequencing_depth_avg_fastq": sequencing_depth_avg_fastq})
@@ -155,10 +160,71 @@ print("Done.")
 print("")
 
 
+# MERGE WITH SAMPLE LIST
+print("Merging results with sample list...")
+print("  No. samples...")
+print("    ...in sample list: %d" % sample_df.shape[0])
+print("    ...with GISAID statistics: %d" % df.shape[0])
+# Merge
+merged_df = pd.merge(left=df,
+                     right=sample_df,
+                     left_on=["run", "barcode"],
+                     right_on=["ExpID", "Barcode"])
+merged_df.drop(["Barcode", "UniqueID", "ExpID"], 1, inplace=True) # clean columns
+print("    ...after merging: %d" % merged_df.shape[0])
+print("Done.")
+print("")
+
+
+# FILTER FOR SUBMISSION
+print("Removing controls...")
+filtered_df = merged_df.query("Type != 'Control'")
+print("  Samples remaining: %d" % merged_df.shape[0])
+print("Done.")
+print("")
+
+# Remove duplicates
+print("Taking highest depth for duplicate samples...")
+grps = filtered_df.groupby("Sample ID")
+
+l_dfs = []
+print("  {:<8}  {:<8}  {:<10}  {:<4}".format("Sample", "No. dup.", "Keep", "Depth"))
+for n, sdf in grps:
+    n_dup = sdf.shape[0]
+    if n_dup > 1:
+        keep = sdf.sort_values("sequencing_depth_avg", ascending=False).iloc[0]
+        print("  {:<8}  {:<8}  {:<10}  {:<4.1f}".format(n, n_dup, keep["sample"], keep["sequencing_depth_avg"]))
+    else:
+        keep = sdf.iloc[0]
+    l_dfs.append(keep)
+filtered_df = pd.concat(l_dfs, 1).transpose()
+print("  Samples remaining: %d" % filtered_df.shape[0])
+print("Done.")
+print("")
+
+# Remove low quality
+depth_threshold = 50
+breadth_threshold = 0.8
+print("Filtering low quality samples...")
+print("  Average depth >= %dX" % depth_threshold)
+print("  Coverage breadth >= %.f%%" % (100*breadth_threshold))
+filtered_df.query("sequencing_depth_avg >= @depth_threshold" + \
+                  "& sequencing_depth_avg >= @depth_threshold", 
+                  inplace=True)
+print("  Samples remaining: %d" % filtered_df.shape[0])
+print("Done.")
+print("")
+
+# Add `to_submit` column, and write keep list
+keep_list = filtered_df["sample"].values
+merged_df.insert(20, "to_submit", [True if s in keep_list else False for s in merged_df["sample"]])
+
+
 # WRITE RESULTS
 print("Writing results...")
 output_fn = "%s_gisaid.csv" % datetime.datetime.now().strftime("%Y-%m-%d")
-df.to_csv(os.path.join(output_dir, output_fn), index=False)
+merged_df.to_csv(os.path.join(output_dir, output_fn), index=False)
+pd.Series(keep_list).to_csv(os.path.join(output_dir, output_fn.replace("gisaid","inclusion-list")), index=False)
 print("  To: %s" % os.path.join(output_dir, output_fn))
 print("Done.")
 print("")
