@@ -195,7 +195,7 @@ RAWDATADIR="$BASEFOLDER/1_Raw/$RUNNAME"
 # Sequencing summary  3  
 
 # CLI VARIABLES
-#      BASEFOLDER   1-6
+#      BASEFOLDER   1-6if (( ${#SAMPLES[@]} == 0 )); then
 #      PRIMERS      2, 3
 #      PRIMERDIR    3
 #      RUNNAME      1-6
@@ -288,8 +288,18 @@ if [ $S3 = 1 ] || [ $S6 = 1 ] ; then
     
     #Read in Samples
     readarray -t SAMPLES < <(awk -F"," '$7 ~ /'$RUNNAME'/ {print$2}' $SAMPLEFILE)
+    if (( ${#SAMPLES[@]} == 0 )); then
+        printf "\n${RED}ERROR:${NC} SAMPLES array is empty \nExiting script\n\n"
+        exit
+    fi
+    
     #Read in barcodes
     readarray -t BARCODES < <(awk -F"," '$7 ~ /'$RUNNAME'/ {print$1}' $SAMPLEFILE)
+    if (( ${#BARCODES[@]} == 0 )); then
+        printf "\n${RED}ERROR:${NC} BARCODES array is empty \nExiting script\n\n"
+        exit
+    fi
+    
     #Check for barcode duplicates within the run
     if [ `printf '%s\n' "${BARCODES[@]}" | awk '!($0 in seen){seen[$0];next} 1' | wc -l` -gt 0 ] ; then
         printf "${RED}ERROR:${NC} The following duplicate barcodes are present in $SAMPLEFILE file for $RUNNAME run:\n"
