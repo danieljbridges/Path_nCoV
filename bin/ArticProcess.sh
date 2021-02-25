@@ -9,8 +9,8 @@ set -e #exit whenever a command exits with a non zero status
 set -u #treat undefined variables as errors
 set -o pipefail #pipe will be considered successful if all the commands are executed without errors
 
-VERSION="0.3.3"
-VERDATE="2021/02/12"
+VERSION="0.3.4"
+VERDATE="2021/02/25"
 #ANSI escape codes: 
 #Black        0;30     Dark Gray     1;30
 #Red          0;31     Light Red     1;31
@@ -308,22 +308,20 @@ if [ $S3 = 1 ] || [ $S6 = 1 ] ; then
     fi
 fi
 #Define logfile output
-LOGFOLDER="$BASEFOLDER/Logs"
+LOGFOLDER="$BASEFOLDER/Logs/$RUNNAME"
 check_mkdir $LOGFOLDER
-LOG=$(echo "$LOGFOLDER/${RUNNAME}.log")
+LOG=$(echo "$LOGFOLDER/${RUNNAME}_Step_")
 
 printf "${GREEN}CHECKED:${NC}All required programs, files and locations are present.
 ${GREEN}CHECKED:${NC}No errors in sample list.\n"
 
 #==============THE SCRIPT==================Se   
-#Log everything
-{
 #STEP 1: Run the guppy barcoder to demultiplex into separate barcodes
 if [ $S1 = 1 ] ; then
     printf "\n###### ${BLUE}Step 1: Running the guppy_barcoder to demultiplex the FASTQ files.${NC} ######\n\n"
-    printf "${LG}guppy_barcoder --require_barcodes_both_ends -i $FASTQRAW -s $ARTIC_OUT/fastq --arrangements_files barcode_arrs_nb96.cfg${NC}\n"
+    printf "${LG}guppy_barcoder --require_barcodes_both_ends -i $FASTQRAW -s $ARTIC_OUT/fastq --arrangements_files barcode_arrs_nb96.cfg${NC}\n" | tee "${LOG}1.log"
     
-    guppy_barcoder --require_barcodes_both_ends -i $FASTQRAW -s $ARTIC_OUT/fastq --arrangements_files "barcode_arrs_nb96.cfg"
+    guppy_barcoder --require_barcodes_both_ends -i $FASTQRAW -s $ARTIC_OUT/fastq --arrangements_files "barcode_arrs_nb96.cfg" | tee -a "${LOG}1.log"
     printf "\n###### ${GREEN}Step 1: guppy_barcoder completed. ${NC} ######\n\n"
 else
     printf "###### ${GREEN}Step 1: Skipping guppy_barcoder step${NC} ######\n\n"
@@ -331,7 +329,7 @@ fi
 
 #STEP 2: Combine all identical barcode reads into same fasta and exclude sizes
 if [ $S2 = 1 ] ; then
-    printf "\n###### ${BLUE}Step 2: Combining demultiplexed files into a single fastq and excluding based on size.${NC} ######\n\n"
+    printf "\n###### ${BLUE}Step 2: Combining demultiplexed files into a single fastq and excluding based on size.${NC} ######\n\n" | tee "${LOG}2.log"
     readarray -t S2DIRS < <(find $ARTIC_OUT/fastq -type d -name 'barcode[0-9]*')
     
     #Change directory as unable to redirect output from guppyplex
@@ -339,8 +337,8 @@ if [ $S2 = 1 ] ; then
     
     #Run through the demuxed barcodes to combine into single fastq files
     for S2DIR in "${S2DIRS[@]}" ; do
-        printf "${LG}artic guppyplex --skip-quality-check --min-length $MIN --max-length $MAX --directory $S2DIR --prefix $RUNNAME ${NC}\n"
-       artic guppyplex --skip-quality-check --min-length $MIN --max-length $MAX --directory $S2DIR --prefix $RUNNAME
+        printf "${LG}artic guppyplex --skip-quality-check --min-length $MIN --max-length $MAX --directory $S2DIR --prefix $RUNNAME ${NC}\n" | tee -a "${LOG}2.log"
+       artic guppyplex --skip-quality-check --min-length $MIN --max-length $MAX --directory $S2DIR --prefix $RUNNAME | tee -a "${LOG}2.log"
     done
     echo -e "\n###### ${GREEN}Step 2: guppyplex completed. ${NC} ######\n\n"
 else
@@ -349,7 +347,7 @@ fi
 
 #STEP 3: Processing with artic minion pipeline
 if [ $S3 = 1 ] ; then
-    printf "\n###### ${BLUE}Step 3: Importing samplenames and processing with artic minion command.${NC} ######\n\n"
+    printf "\n###### ${BLUE}Step 3: Importing samplenames and processing with artic minion command.${NC} ######\n\n" | tee "${LOG}3.log"
     
     #Change directory
     cd $ARTIC_OUT/fastq/
@@ -368,23 +366,25 @@ if [ $S3 = 1 ] ; then
         
         #Check that there is a file for this barcode (NTC may not have any reads)
         if [ ! -f $FILE ] ; then
-            printf "${RED}WARNING:${NC} $FILE is not present - moving to next sample.\n"
+            printf "${RED}WARNING:${NC} $FILE is not present - moving to next sample.\n" | tee -a "${LOG}3.log"
         else
             #Ensure fastq file is not empty
             FASTQLENGTH=`wc -l $FILE | sed s/$FILE//`  
             
+            echo -e "\n\n \n${ORANGE} Processing barcode number $BARCODE, Sample $SAMPLENAME from file $FILE \n${NC}" | tee -a "${LOG}3.log"
+            
             #Remove files that have not got enough data
             if [ $FASTQLENGTH -gt 1000 ] ; then
-                echo -e "\n\n \n${ORANGE} Processing barcode number $BARCODE, Sample $SAMPLENAME from file $FILE \n${NC}"
                 #Run processing scheme
                 if [ $MEDAKA = 1 ] ; then
                     printf "\n${GREEN}Using Medaka pipeline${NC}\n"
-                    printf "${LG}artic minion --medaka --normalise 200 --threads 24 --scheme-directory $PRIMERDIR --read-file $FILE $PRIMERSCHEME $SAMPLENAME ${NC}\n"
-                    artic minion --medaka --normalise 200 --threads 24 --scheme-directory $PRIMERDIR --read-file $FILE $PRIMERSCHEME $SAMPLENAME
+                    printf "${LG}artic minion --medaka --normalise 200 --threads 24 --scheme-directory $PRIMERDIR --read-file $FILE $PRIMERSCHEME $SAMPLENAME ${NC}\n" | tee -a "${LOG}3.log"
+                    artic minion --medaka --normalise 200 --threads 24 --scheme-directory $PRIMERDIR --read-file $FILE $PRIMERSCHEME $SAMPLENAME 2>&1 | tee -a "${LOG}3.log"
+                    # 2>&1 redirects stderr to stdout
                 else
                     printf "\n${GREEN}Using Nanopolish pipeline${NC}\n"
-                    printf "${LG}artic minion --normalise 200 --threads 24 --scheme-directory $PRIMERDIR --read-file $FILE --fast5-directory $RAWDATADIR --sequencing-summary $SEQUENCINGSUMMARY $PRIMERSCHEME $SAMPLENAME${NC}\n"
-                    artic minion --normalise 200 --threads 24 --scheme-directory $PRIMERDIR --read-file $FILE --fast5-directory $RAWDATADIR --sequencing-summary $SEQUENCINGSUMMARY $PRIMERSCHEME $SAMPLENAME
+                    printf "${LG}artic minion --normalise 200 --threads 24 --scheme-directory $PRIMERDIR --read-file $FILE --fast5-directory $RAWDATADIR --sequencing-summary $SEQUENCINGSUMMARY $PRIMERSCHEME $SAMPLENAME${NC}\n" | tee -a "${LOG}3.log"
+                    artic minion --normalise 200 --threads 24 --scheme-directory $PRIMERDIR --read-file $FILE --fast5-directory $RAWDATADIR --sequencing-summary $SEQUENCINGSUMMARY $PRIMERSCHEME $SAMPLENAME 2>&1 | tee -a "${LOG}3.log"
                 fi
                 
                 #Make samplename subdirectory if required
@@ -398,8 +398,7 @@ if [ $S3 = 1 ] ; then
                 #Move directory to another level for clarity
                 mv $ARTIC_OUT/fastq/$SAMPLENAME $ARTIC_OUT/processed/$SAMPLENAME
             else
-                printf "${RED}ERROR:${NC} Too few reads (n = $FASTQLENGTH) in File $FILE (Barcode $BARCODE, Sample $SAMPLENAME).
-                Aborting processing this file\n"
+                printf "\n\n${RED}ERROR:${NC} Too few reads (n = $FASTQLENGTH) in File $FILE (Barcode $BARCODE, Sample $SAMPLENAME).\nAborting processing this file\n" | tee -a "${LOG}3.log"
             fi
         fi
     done
@@ -417,34 +416,35 @@ if [ $S4 = 1 ] ; then
     check_mkdir $CONSENSUS
     cd $CONSENSUS
     #Concatenate all of the fasta consensus data
-    find /$ARTIC_OUT/processed -name '*.consensus.fasta' | xargs cat > $RUNNAME.consensus.fasta
+    find /$ARTIC_OUT/processed -name '*.consensus.fasta' | xargs cat > $RUNNAME.consensus.fasta } | tee "${LOG}4.log"
     
     echo -e "\n###### ${GREEN}Step 4: consensus sequences compiled. ${NC} ######\n\n"
 else
     printf "###### ${GREEN}Step 4: Skipping consensus sequences ${NC} ######\n\n"
 fi
 
+
 #STEP 5: Generate GISAID stats
 if [ $S5 = 1 ] ; then
     printf "\n###### ${BLUE}Step 5: Generating statistics on sequencing and identify sequences for upload. ${NC} ######\n\n"
+    #Move to basefolder to ensure output is put int the correct location
+    cd $BASEFOLDER
     #Run 
     run_gisaid-statistics.py -d $BASEFOLDER
     
     #Filter the list of all sequences to only retain the correct ones
     #seqkit grep -n -f FASTAHeadersFilter.csv all.fasta -o Filtered.fasta
 
-    echo -e "\n###### ${GREEN}Step 5: Sequencing statistics compiled. ${NC} ######\n\n"
+    printf "\n###### ${GREEN}Step 5: Sequencing statistics compiled. ${NC} ######\n\n"
 else
     printf "###### ${GREEN}Step 5: Skipping generating sequencing statistics${NC} ######\n\n"
 fi
-
-} | tee $LOG
 
 if [ $S6 = 1 ] ; then
     printf "\n###### ${BLUE}Step 6: Generating JSON files for Rampart. ${NC} ######\n\n"
 
     COUNT=0
-    JSONFILE="$BASEFOLDER/${RUNNAME}_run_configuration.json"
+    JSONFILE="$BASEFOLDER/2_SampleList_and_Rampart/${RUNNAME}_run_configuration.json"
     
     #Start the JSON File
     printf "{
@@ -455,7 +455,7 @@ if [ $S6 = 1 ] ; then
     for BARCODE in "${BARCODES[@]}"; do 
         SAMPLE=${SAMPLES[$COUNT]}
         #Ensure that all barcodes are 2 digit
-        if [ ${#BARCODE} < 2 ]; then
+        if [ ${#BARCODE} -lt 2 ]; then
             BARCODE="0$BARCODE"
         fi
         printf "    {
@@ -471,11 +471,12 @@ if [ $S6 = 1 ] ; then
         #Increment the count
         #Increment count
         (( COUNT += 1 )) #let COUNT=COUNT+1
-        printf "Sample = $SAMPLE, Barcode = $BARCODE\n"
+        printf "${BLUE}ADDED:${NC} Sample = $SAMPLE, Barcode = $BARCODE\n"
     done
     #Finish off the JSON File
     printf "  ]
     }" >> $JSONFILE
+    printf "\n###### ${GREEN}Step 6: Rampart config saved to $JSONFILE. ${NC} ######\n\n"
 fi
 
 exit
@@ -497,10 +498,6 @@ seqkit replace -p "(.+)" -r '{kv}' -i -K -k FASTAHeadersReplacements.csv Filtere
 #Create Samplejson list from the csv file
 
 cat all.fasta | sed s'/\//_/g' | seqkit replace -p "(.+)" -r '{kv}' -K -k Replacements.tsv | seqkit grep -r -p ^SARS > Submission.fa
-# open file | Replace slashes with underscores | Replace fasta header with substitute from Alteryx | Grep for those starting with SARS (changed)
-
-# Concatenate and tidy up the names of the fasta headers
-cat *.fasta | sed 's/\/ARTIC\/nanopolish MN908947.3/\/2020/'| sed 's/>/>SARS-CoV-2\/human\/Zambia\//' > out.fasta
 
 #Bug catching - list all defined variables
 ( set -o posix ; set ) | less
