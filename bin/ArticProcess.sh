@@ -416,7 +416,7 @@ if [ $S4 = 1 ] ; then
     check_mkdir $CONSENSUS
     cd $CONSENSUS
     #Concatenate all of the fasta consensus data
-    find /$ARTIC_OUT/processed -name '*.consensus.fasta' | xargs cat > $RUNNAME.consensus.fasta } | tee "${LOG}4.log"
+    find /$ARTIC_OUT/processed -name '*.consensus.fasta' | xargs cat > $RUNNAME.consensus.fasta | tee "${LOG}4.log"
     
     echo -e "\n###### ${GREEN}Step 4: consensus sequences compiled. ${NC} ######\n\n"
 else
