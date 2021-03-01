@@ -222,7 +222,7 @@ merged_df.insert(20, "to_submit", [True if s in keep_list else False for s in me
 
 # WRITE RESULTS
 print("Writing results...")
-output_fn = "%s_gisaid.csv" % datetime.datetime.now().strftime("%Y-%m-%d")
+output_fn = "gisaid.csv"
 merged_df.to_csv(os.path.join(output_dir, output_fn), index=False)
 pd.Series(keep_list).to_csv(os.path.join(output_dir, output_fn.replace("gisaid","inclusion-list")), index=False)
 print("  To: %s" % os.path.join(output_dir, output_fn))

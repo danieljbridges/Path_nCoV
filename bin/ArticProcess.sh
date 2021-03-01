@@ -9,8 +9,8 @@ set -e #exit whenever a command exits with a non zero status
 set -u #treat undefined variables as errors
 set -o pipefail #pipe will be considered successful if all the commands are executed without errors
 
-VERSION="0.3.4"
-VERDATE="2021/02/25"
+VERSION="0.3.5"
+VERDATE="2021/03/01"
 #ANSI escape codes: 
 #Black        0;30     Dark Gray     1;30
 #Red          0;31     Light Red     1;31
@@ -50,7 +50,7 @@ function Help {
     Optional args:
     -h      Print this help
     -m      Process using the medaka pipeline rather than with nanopolish
-    -p      Primers used during PCR [Sanger | Artic]
+    -p      Primers used during PCR [Sanger | Artic | Midnight]
     -s      Location directory of the primer scheme used
     -v      Version
 
@@ -183,38 +183,6 @@ PRIMERDIR=${PRIMERDIR:- 1}      # 3
 PRIMERS=${PRIMERS:- 1}          # 2, 3
 ARTIC_OUT="$BASEFOLDER/3_Artic_Output/$RUNNAME"
 RAWDATADIR="$BASEFOLDER/1_Raw/$RUNNAME"
-
-
-###############
-#                   Needed by step
-# Packages
-###### guppy_barcoder    1
-# artic             1,2,3
-
-# files
-# Sequencing summary  3  
-
-# CLI VARIABLES
-#      BASEFOLDER   1-6if (( ${#SAMPLES[@]} == 0 )); then
-#      PRIMERS      2, 3
-#      PRIMERDIR    3
-#      RUNNAME      1-6
-
-# FASTQRAW          1
-# PRIMERS           2, 3
-# MAX               2, 3
-# MIN               2, 3
-# PRIMERSCHEME      2, 3
-# MEDAKA            3
-# PRIMERDIR         3
-# SAMPLEFILE        3
-# SAMPLES           3
-# BARCODES          3
-# BASEFOLDER        1,2,3,4,5,6
-# RUNNAME
-#which:
-# guppy_barcoder    1
-
 
 #################################################
 #Check necessary packages and folders for all functions
@@ -420,7 +388,7 @@ if [ $S4 = 1 ] ; then
     check_mkdir $CONSENSUS
     cd $CONSENSUS
     #Concatenate all of the fasta consensus data
-    find /$ARTIC_OUT/processed -name '*.consensus.fasta' | xargs cat > $RUNNAME.consensus.fasta | tee "${LOG}4.log"
+    find /$ARTIC_OUT/processed -name '*.consensus.fasta' | xargs cat > $RUNNAME.consensus.fasta
     
     echo -e "\n###### ${GREEN}Step 4: consensus sequences compiled. ${NC} ######\n\n"
 else
@@ -428,13 +396,27 @@ else
 fi
 
 
-#STEP 5: Generate GISAID stats
+#STEP 5: Generate stats
 if [ $S5 = 1 ] ; then
     printf "\n###### ${BLUE}Step 5: Generating statistics on sequencing and identify sequences for upload. ${NC} ######\n\n"
-    #Move to basefolder to ensure output is put int the correct location
+    
+    #Generate pango lineages for all sequences
+    source ~/.miniconda3/etc/profile.d/conda.sh 
+    set +eu
+    conda activate pangolin
+    check_package "pangolin environment" "Please activate the appropriate environment e.g.:\n\n conda activate pangolin\n"
+        
+    #Move to correct folder
+    cd "$BASEFOLDER/4_Consensus"
+    #Cat all sequences together
+    find ./ -type f -name "*consensus.fasta" | xargs -I '{}'  cat {} > "all_sequences.fasta"
+    #run pangolin
+    pangolin "all_sequences.fasta" 2>&1 | tee -a "${LOG}5_pango.log"
+    mv "lineage_report.csv" "../5_GISAID"
+    
+    #Run stats
     cd $BASEFOLDER
-    #Run 
-    run_gisaid-statistics.py -d $BASEFOLDER
+    run_gisaid-statistics.py -d $BASEFOLDER 2>&1 | tee -a "${LOG}5_gisaid.log"
     
     #Filter the list of all sequences to only retain the correct ones
     #seqkit grep -n -f FASTAHeadersFilter.csv all.fasta -o Filtered.fasta
@@ -481,6 +463,8 @@ if [ $S6 = 1 ] ; then
     printf "  ]
     }" >> $JSONFILE
     printf "\n###### ${GREEN}Step 6: Rampart config saved to $JSONFILE. ${NC} ######\n\n"
+else
+    printf "###### ${GREEN}Step 6: Skipping Generating JSON files for Rampart${NC} ######\n\n"
 fi
 
 exit

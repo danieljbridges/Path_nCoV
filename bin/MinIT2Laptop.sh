@@ -25,7 +25,7 @@ fi
 }
 #==============THE SCRIPT==================
 
-echo -e "This script will synchronise data from the MinIT to the local Laptop.
+printf "This script will synchronise data from the MinIT (assumed to be at $MINITIP) to the local Laptop.
 Usage:\n
 MinIT2Laptop.sh <PathToMinIT> <LocalPATH>\n
 
