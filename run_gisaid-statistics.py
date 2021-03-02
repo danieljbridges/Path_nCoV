@@ -204,7 +204,7 @@ print("")
 
 # Remove low quality
 depth_threshold = 50
-breadth_threshold = 0.8
+breadth_threshold = 0.5
 print("Filtering low quality samples...")
 print("  Average depth >= %dX" % depth_threshold)
 print("  Coverage breadth >= %.f%%" % (100*breadth_threshold))

@@ -387,39 +387,56 @@ if [ $S4 = 1 ] ; then
     CONSENSUS="$BASEFOLDER/4_Consensus"
     check_mkdir $CONSENSUS
     cd $CONSENSUS
-    #Concatenate all of the fasta consensus data
-    find /$ARTIC_OUT/processed -name '*.consensus.fasta' | xargs cat > $RUNNAME.consensus.fasta
+    
+    #Concatenate all of the fasta consensus data from this run
+    #find /$ARTIC_OUT/processed -name '*.consensus.fasta' | xargs cat > $RUNNAME.consensus.fasta
+    #Cat all runs sequences together
+    #find ./ -type f -name "*consensus.fasta" | xargs -I '{}'  cat {} > "all_sequences.fasta"
+    #Remove the additional info in the header to just leave the Sample ID
+    cat all_sequences.fasta | sed  s'/\/ARTIC\/nanopolish MN908947.3//' > all.fasta
+    mv all.fasta all_sequences.fasta
     
     echo -e "\n###### ${GREEN}Step 4: consensus sequences compiled. ${NC} ######\n\n"
 else
     printf "###### ${GREEN}Step 4: Skipping consensus sequences ${NC} ######\n\n"
 fi
 
+find /media/d/ -type f -size +50M ! \( -name "*deb" -o -name "*vmdk" \)
 
 #STEP 5: Generate stats
 if [ $S5 = 1 ] ; then
-    printf "\n###### ${BLUE}Step 5: Generating statistics on sequencing and identify sequences for upload. ${NC} ######\n\n"
+    printf "\n###### ${BLUE}Step 5: Generating statistics and lineages on sequences. ${NC} ######\n"
     
-    #Generate pango lineages for all sequences
+    printf "\n###### ${GREEN} Running run_gisaid-statistics.py script ${NC} ######\n\n"
+    #Run stats
+    cd $BASEFOLDER
+    #run_gisaid-statistics.py -d $BASEFOLDER 2>&1 | tee -a "${LOG}5_gisaid.log"
+    
+    printf "\n###### ${GREEN} Filtering to remove unwanted sequences from fasta file ${NC} ######\n\n"
+    cd "$BASEFOLDER/5_GISAID"
+    #Pull out all of the entries that should be retained
+    awk -F"," '$21 ~ /True|TRUE/ {print$2 }' gisaid.csv > FASTA_HeadersInclude.csv
+    #Filter the list of all sequences to only retain the correct ones
+    seqkit grep -n -f FASTA_HeadersInclude.csv ../4_Consensus/all_sequences.fasta -o ZambiaSequences.fasta
+    rm FASTA_HeadersInclude.csv
+    
+    printf "\n###### ${GREEN} Determining PANGO lineages ${NC} ######\n\n"
     source ~/.miniconda3/etc/profile.d/conda.sh 
     set +eu
     conda activate pangolin
     check_package "pangolin environment" "Please activate the appropriate environment e.g.:\n\n conda activate pangolin\n"
-        
-    #Move to correct folder
-    cd "$BASEFOLDER/4_Consensus"
-    #Cat all sequences together
-    find ./ -type f -name "*consensus.fasta" | xargs -I '{}'  cat {} > "all_sequences.fasta"
     #run pangolin
-    pangolin "all_sequences.fasta" 2>&1 | tee -a "${LOG}5_pango.log"
-    mv "lineage_report.csv" "../5_GISAID"
+    pangolin ZambiaSequences.fasta 2>&1 | tee -a "${LOG}5_pango.log"
     
-    #Run stats
-    cd $BASEFOLDER
-    run_gisaid-statistics.py -d $BASEFOLDER 2>&1 | tee -a "${LOG}5_gisaid.log"
+    printf "\n###### ${GREEN} Determining nextclade lineages ${NC} ######\n\n"
+    check_package "nextclade package" "Please ensure that nextclade is installed (see https://www.npmjs.com/package/@neherlab/nextclade)\n"
+    #run nextclade
+    nextclade -i ZambiaSequences.fasta -c nextclade.csv cd2>&1 | tee -a "${LOG}5_nextclade.log"
     
-    #Filter the list of all sequences to only retain the correct ones
-    #seqkit grep -n -f FASTAHeadersFilter.csv all.fasta -o Filtered.fasta
+    printf "\n###### ${GREEN} Merging datasets into final summary and deleting intermediates${NC} ######\n\n"
+    MergeDatasets.py -d "$BASEFOLDER/5_GISAID"
+    #Remove intermediates
+    find ./ \( -name "gisaid*" -o -name "lineage*" -o -name "nextclade*" \) | xargs -I '{}' rm {} 
 
     printf "\n###### ${GREEN}Step 5: Sequencing statistics compiled. ${NC} ######\n\n"
 else
@@ -427,16 +444,15 @@ else
 fi
 
 if [ $S6 = 1 ] ; then
-    printf "\n###### ${BLUE}Step 6: Generating JSON files for Rampart. ${NC} ######\n\n"
+    printf "\n###### ${BLUE}Step 6: Generreadarray -t KEEPERS < <(awk -F"," '$7 ~ /'$RUNNAME'/ {print$2}' $SAMPLEFILE)ating JSON files for Rampart. ${NC} ######\n\n"
 
     COUNT=0
     JSONFILE="$BASEFOLDER/2_SampleList_and_Rampart/${RUNNAME}_run_configuration.json"
-    
     #Start the JSON File
     printf "{
-        \"title\": \"Run $RUNNAME\",
-        \"basecalledPath\": \"fastq_pass\",
-        \"samples\": [" > $JSONFILE
+    \"title\": \"Run $RUNNAME\",
+    \"basecalledPath\": \"fastq_pass\",
+    \"samples\": [" > $JSONFILE
         
     for BARCODE in "${BARCODES[@]}"; do 
         SAMPLE=${SAMPLES[$COUNT]}
@@ -448,8 +464,7 @@ if [ $S6 = 1 ] ; then
         \"name\": \"$SAMPLE ($BARCODE)\",
         \"description\": \"\",
         \"barcodes\": [ \"NB$BARCODE\" ]" >> $JSONFILE
-        
-        if [ ${#BARCODES[@]} == $COUNT ]; then
+        if [ ${#BARCODES[@]} == $((COUNT+1)) ]; then
             echo -e "    }" >> $JSONFILE #If last entry then there shouldn't be a comma
         else
             echo -e "    }," >> $JSONFILE 
@@ -460,8 +475,7 @@ if [ $S6 = 1 ] ; then
         printf "${BLUE}ADDED:${NC} Sample = $SAMPLE, Barcode = $BARCODE\n"
     done
     #Finish off the JSON File
-    printf "  ]
-    }" >> $JSONFILE
+    printf "  ]\n}" >> $JSONFILE
     printf "\n###### ${GREEN}Step 6: Rampart config saved to $JSONFILE. ${NC} ######\n\n"
 else
     printf "###### ${GREEN}Step 6: Skipping Generating JSON files for Rampart${NC} ######\n\n"
