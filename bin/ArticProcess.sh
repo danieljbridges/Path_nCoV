@@ -444,7 +444,7 @@ else
 fi
 
 if [ $S6 = 1 ] ; then
-    printf "\n###### ${BLUE}Step 6: Generreadarray -t KEEPERS < <(awk -F"," '$7 ~ /'$RUNNAME'/ {print$2}' $SAMPLEFILE)ating JSON files for Rampart. ${NC} ######\n\n"
+    printf "\n###### ${BLUE}Step 6: Generating JSON files for Rampart. ${NC} ######\n\n"
 
     COUNT=0
     JSONFILE="$BASEFOLDER/2_SampleList_and_Rampart/${RUNNAME}_run_configuration.json"
