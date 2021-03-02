@@ -389,9 +389,9 @@ if [ $S4 = 1 ] ; then
     cd $CONSENSUS
     
     #Concatenate all of the fasta consensus data from this run
-    #find /$ARTIC_OUT/processed -name '*.consensus.fasta' | xargs cat > $RUNNAME.consensus.fasta
+    find /$ARTIC_OUT/processed -name '*.consensus.fasta' | xargs cat > $RUNNAME.consensus.fasta
     #Cat all runs sequences together
-    #find ./ -type f -name "*consensus.fasta" | xargs -I '{}'  cat {} > "all_sequences.fasta"
+    find ./ -type f -name "*consensus.fasta" | xargs -I '{}'  cat {} > "all_sequences.fasta"
     #Remove the additional info in the header to just leave the Sample ID
     cat all_sequences.fasta | sed  s'/\/ARTIC\/nanopolish MN908947.3//' > all.fasta
     mv all.fasta all_sequences.fasta
@@ -410,7 +410,7 @@ if [ $S5 = 1 ] ; then
     printf "\n###### ${GREEN} Running run_gisaid-statistics.py script ${NC} ######\n\n"
     #Run stats
     cd $BASEFOLDER
-    #run_gisaid-statistics.py -d $BASEFOLDER 2>&1 | tee -a "${LOG}5_gisaid.log"
+    run_gisaid-statistics.py -d $BASEFOLDER 2>&1 | tee -a "${LOG}5_gisaid.log"
     
     printf "\n###### ${GREEN} Filtering to remove unwanted sequences from fasta file ${NC} ######\n\n"
     cd "$BASEFOLDER/5_GISAID"
