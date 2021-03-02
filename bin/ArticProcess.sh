@@ -401,8 +401,6 @@ else
     printf "###### ${GREEN}Step 4: Skipping consensus sequences ${NC} ######\n\n"
 fi
 
-find /media/d/ -type f -size +50M ! \( -name "*deb" -o -name "*vmdk" \)
-
 #STEP 5: Generate stats
 if [ $S5 = 1 ] ; then
     printf "\n###### ${BLUE}Step 5: Generating statistics and lineages on sequences. ${NC} ######\n"
@@ -421,7 +419,8 @@ if [ $S5 = 1 ] ; then
     rm FASTA_HeadersInclude.csv
     
     printf "\n###### ${GREEN} Determining PANGO lineages ${NC} ######\n\n"
-    source ~/.miniconda3/etc/profile.d/conda.sh 
+    CONDA=`which conda | sed s'/\/condabin//' | sed s'/bin\///' | sed s'/\/conda//'`
+    source $CONDA/etc/profile.d/conda.sh 
     set +eu
     conda activate pangolin
     check_package "pangolin environment" "Please activate the appropriate environment e.g.:\n\n conda activate pangolin\n"
