@@ -9,8 +9,8 @@ set -e #exit whenever a command exits with a non zero status
 set -u #treat undefined variables as errors
 set -o pipefail #pipe will be considered successful if all the commands are executed without errors
 
-VERSION="0.3.5"
-VERDATE="2021/03/01"
+VERSION="0.3.6"
+VERDATE="2021/03/05"
 #ANSI escape codes: 
 #Black        0;30     Dark Gray     1;30
 #Red          0;31     Light Red     1;31
@@ -280,10 +280,12 @@ if [ $S3 = 1 ] || [ $S6 = 1 ] ; then
     fi
 fi
 #Define logfile output
-LOGFOLDER="$BASEFOLDER/Logs/$RUNNAME"
-check_mkdir $LOGFOLDER
-LOG=$(echo "$LOGFOLDER/${RUNNAME}_Step_")
+LOGFOLDER="$BASEFOLDER/Logs/"
+RUNLOG="$LOGFOLDER/$RUNNAME/"
+check_mkdir $RUNLOG
+RUNLOG=$(echo "$RUNLOG${RUNNAME}_Step_")
 
+#All checks complete
 printf "${GREEN}CHECKED:${NC}All required programs, files and locations are present.
 ${GREEN}CHECKED:${NC}No errors in sample list.\n"
 
@@ -293,7 +295,7 @@ if [ $S1 = 1 ] ; then
     printf "\n###### ${BLUE}Step 1: Running the guppy_barcoder to demultiplex the FASTQ files.${NC} ######\n\n"
     printf "${LG}guppy_barcoder --require_barcodes_both_ends -i $FASTQRAW -s $ARTIC_OUT/fastq --arrangements_files barcode_arrs_nb96.cfg${NC}\n" | tee "${LOG}1.log"
     
-    guppy_barcoder --require_barcodes_both_ends -i $FASTQRAW -s $ARTIC_OUT/fastq --arrangements_files "barcode_arrs_nb96.cfg" | tee -a "${LOG}1.log"
+    guppy_barcoder --require_barcodes_both_ends -i $FASTQRAW -s $ARTIC_OUT/fastq --arrangements_files "barcode_arrs_nb96.cfg" | tee -a "${RUNLOG}1.log"
     printf "\n###### ${GREEN}Step 1: guppy_barcoder completed. ${NC} ######\n\n"
 else
     printf "###### ${GREEN}Step 1: Skipping guppy_barcoder step${NC} ######\n\n"
@@ -301,7 +303,7 @@ fi
 
 #STEP 2: Combine all identical barcode reads into same fasta and exclude sizes
 if [ $S2 = 1 ] ; then
-    printf "\n###### ${BLUE}Step 2: Combining demultiplexed files into a single fastq and excluding based on size.${NC} ######\n\n" | tee "${LOG}2.log"
+    printf "\n###### ${BLUE}Step 2: Combining demultiplexed files into a single fastq and excluding based on size.${NC} ######\n\n" | tee "${RUNLOG}2.log"
     readarray -t S2DIRS < <(find $ARTIC_OUT/fastq -type d -name 'barcode[0-9]*')
     
     #Change directory as unable to redirect output from guppyplex
@@ -309,8 +311,8 @@ if [ $S2 = 1 ] ; then
     
     #Run through the demuxed barcodes to combine into single fastq files
     for S2DIR in "${S2DIRS[@]}" ; do
-        printf "${LG}artic guppyplex --skip-quality-check --min-length $MIN --max-length $MAX --directory $S2DIR --prefix $RUNNAME ${NC}\n" | tee -a "${LOG}2.log"
-       artic guppyplex --skip-quality-check --min-length $MIN --max-length $MAX --directory $S2DIR --prefix $RUNNAME | tee -a "${LOG}2.log"
+        printf "${LG}artic guppyplex --skip-quality-check --min-length $MIN --max-length $MAX --directory $S2DIR --prefix $RUNNAME ${NC}\n" | tee -a "${RUNLOG}2.log"
+       artic guppyplex --skip-quality-check --min-length $MIN --max-length $MAX --directory $S2DIR --prefix $RUNNAME | tee -a "${RUNLOG}2.log"
     done
     echo -e "\n###### ${GREEN}Step 2: guppyplex completed. ${NC} ######\n\n"
 else
@@ -319,7 +321,7 @@ fi
 
 #STEP 3: Processing with artic minion pipeline
 if [ $S3 = 1 ] ; then
-    printf "\n###### ${BLUE}Step 3: Importing samplenames and processing with artic minion command.${NC} ######\n\n" | tee "${LOG}3.log"
+    printf "\n###### ${BLUE}Step 3: Importing samplenames and processing with artic minion command.${NC} ######\n\n" | tee "${RUNLOG}3.log"
     
     #Change directory
     cd $ARTIC_OUT/fastq/
@@ -338,25 +340,25 @@ if [ $S3 = 1 ] ; then
         
         #Check that there is a file for this barcode (NTC may not have any reads)
         if [ ! -f $FILE ] ; then
-            printf "${RED}WARNING:${NC} $FILE is not present - moving to next sample.\n" | tee -a "${LOG}3.log"
+            printf "${RED}WARNING:${NC} $FILE is not present - moving to next sample.\n" | tee -a "${RUNLOG}3.log"
         else
             #Ensure fastq file is not empty
             FASTQLENGTH=`wc -l $FILE | sed s/$FILE//`  
             
-            echo -e "\n\n \n${ORANGE} Processing barcode number $BARCODE, Sample $SAMPLENAME from file $FILE \n${NC}" | tee -a "${LOG}3.log"
+            echo -e "\n\n \n${ORANGE} Processing barcode number $BARCODE, Sample $SAMPLENAME from file $FILE \n${NC}" | tee -a "${RUNLOG}3.log"
             
             #Remove files that have not got enough data
             if [ $FASTQLENGTH -gt 1000 ] ; then
                 #Run processing scheme
                 if [ $MEDAKA = 1 ] ; then
                     printf "\n${GREEN}Using Medaka pipeline${NC}\n"
-                    printf "${LG}artic minion --medaka --normalise 200 --threads 24 --scheme-directory $PRIMERDIR --read-file $FILE $PRIMERSCHEME $SAMPLENAME ${NC}\n" | tee -a "${LOG}3.log"
-                    artic minion --medaka --normalise 200 --threads 24 --scheme-directory $PRIMERDIR --read-file $FILE $PRIMERSCHEME $SAMPLENAME 2>&1 | tee -a "${LOG}3.log"
+                    printf "${LG}artic minion --medaka --normalise 200 --threads 24 --scheme-directory $PRIMERDIR --read-file $FILE $PRIMERSCHEME $SAMPLENAME ${NC}\n" | tee -a "${RUNLOG}3.log"
+                    artic minion --medaka --normalise 200 --threads 24 --scheme-directory $PRIMERDIR --read-file $FILE $PRIMERSCHEME $SAMPLENAME 2>&1 | tee -a "${RUNLOG}3.log"
                     # 2>&1 redirects stderr to stdout
                 else
                     printf "\n${GREEN}Using Nanopolish pipeline${NC}\n"
-                    printf "${LG}artic minion --normalise 200 --threads 24 --scheme-directory $PRIMERDIR --read-file $FILE --fast5-directory $RAWDATADIR --sequencing-summary $SEQUENCINGSUMMARY $PRIMERSCHEME $SAMPLENAME${NC}\n" | tee -a "${LOG}3.log"
-                    artic minion --normalise 200 --threads 24 --scheme-directory $PRIMERDIR --read-file $FILE --fast5-directory $RAWDATADIR --sequencing-summary $SEQUENCINGSUMMARY $PRIMERSCHEME $SAMPLENAME 2>&1 | tee -a "${LOG}3.log"
+                    printf "${LG}artic minion --normalise 200 --threads 24 --scheme-directory $PRIMERDIR --read-file $FILE --fast5-directory $RAWDATADIR --sequencing-summary $SEQUENCINGSUMMARY $PRIMERSCHEME $SAMPLENAME${NC}\n" | tee -a "${RUNLOG}3.log"
+                    artic minion --normalise 200 --threads 24 --scheme-directory $PRIMERDIR --read-file $FILE --fast5-directory $RAWDATADIR --sequencing-summary $SEQUENCINGSUMMARY $PRIMERSCHEME $SAMPLENAME 2>&1 | tee -a "${RUNLOG}3.log"
                 fi
                 
                 #Make samplename subdirectory if required
@@ -370,7 +372,7 @@ if [ $S3 = 1 ] ; then
                 #Move directory to another level for clarity
                 mv $ARTIC_OUT/fastq/$SAMPLENAME $ARTIC_OUT/processed/$SAMPLENAME
             else
-                printf "\n\n${RED}ERROR:${NC} Too few reads (n = $FASTQLENGTH) in File $FILE (Barcode $BARCODE, Sample $SAMPLENAME).\nAborting processing this file\n" | tee -a "${LOG}3.log"
+                printf "\n\n${RED}ERROR:${NC} Too few reads (n = $FASTQLENGTH) in File $FILE (Barcode $BARCODE, Sample $SAMPLENAME).\nAborting processing this file\n" | tee -a "${RUNLOG}3.log"
             fi
         fi
     done
@@ -408,7 +410,7 @@ if [ $S5 = 1 ] ; then
     printf "\n###### ${GREEN} Running run_gisaid-statistics.py script ${NC} ######\n\n"
     #Run stats
     cd $BASEFOLDER
-    run_gisaid-statistics.py -d $BASEFOLDER 2>&1 | tee -a "${LOG}5_gisaid.log"
+    run_gisaid-statistics.py -d $BASEFOLDER 2>&1 | tee "${LOGFOLDER}gisaid.log"
     
     printf "\n###### ${GREEN} Filtering to remove unwanted sequences from fasta file ${NC} ######\n\n"
     cd "$BASEFOLDER/5_GISAID"
@@ -425,17 +427,18 @@ if [ $S5 = 1 ] ; then
     conda activate pangolin
     check_package "pangolin environment" "Please activate the appropriate environment e.g.:\n\n conda activate pangolin\n"
     #run pangolin
-    pangolin ZambiaSequences.fasta 2>&1 | tee -a "${LOG}5_pango.log"
+    pangolin ZambiaSequences.fasta 2>&1 | tee "${LOGFOLDER}pango.log"
     
     printf "\n###### ${GREEN} Determining nextclade lineages ${NC} ######\n\n"
     check_package "nextclade package" "Please ensure that nextclade is installed (see https://www.npmjs.com/package/@neherlab/nextclade)\n"
     #run nextclade
-    nextclade -i ZambiaSequences.fasta -c nextclade.csv cd2>&1 | tee -a "${LOG}5_nextclade.log"
+    nextclade -i ZambiaSequences.fasta -c nextclade.csv cd2>&1 | tee "${LOGFOLDER}nextclade.log"
     
-    printf "\n###### ${GREEN} Merging datasets into final summary and deleting intermediates${NC} ######\n\n"
+    printf "\n###### ${GREEN} Merging datasets into final summary and moving intermediates${NC} ######\n\n"
     MergeDatasets.py -d "$BASEFOLDER/5_GISAID"
+    check_mkdir "$BASEFOLDER/5_GISAID/intermediates"
     #Remove intermediates
-    find ./ \( -name "gisaid*" -o -name "lineage*" -o -name "nextclade*" \) | xargs -I '{}' rm {} 
+    find ./ \( -name "gisaid*" -o -name "lineage*" -o -name "nextclade*" \) | xargs -I '{}' mv {} "intermediates"/ 
 
     printf "\n###### ${GREEN}Step 5: Sequencing statistics compiled. ${NC} ######\n\n"
 else
@@ -468,9 +471,8 @@ if [ $S6 = 1 ] ; then
         else
             echo -e "    }," >> $JSONFILE 
         fi
-        #Increment the count
         #Increment count
-        (( COUNT += 1 )) #let COUNT=COUNT+1
+        (( COUNT += 1 )) 
         printf "${BLUE}ADDED:${NC} Sample = $SAMPLE, Barcode = $BARCODE\n"
     done
     #Finish off the JSON File
@@ -484,21 +486,10 @@ exit
 
 ######################## NOTES ##########
 #TO DO
-#Retain only the sequences that are final
-#1. Filter to final multifasta
-seqkit grep -n -f FASTAHeadersFilter.csv all.fasta > Filtered.fasta
-#2. Replace headers
-seqkit replace -p "(.+)" -r '{kv}' -i -K -k FASTAHeadersReplacements.csv Filtered.fasta > Submit.fasta
 
-#perform pangolin lineages on what was created?
-    #GISAID=`find ./ -name '*gisaid.csv' -printf "%f\n"`
-    #readarray -t KEEPERS < <(awk -F"," '$7 ~ /'$RUNNAME'/ {print$2}' $SAMPLEFILE)
-    #readarray -t SAMPLES < <(awk -F"," '$7 ~ /'$RUNNAME'/ {print$2}' $SAMPLEFILE)
-    cd
-
-#Create Samplejson list from the csv file
-
-cat all.fasta | sed s'/\//_/g' | seqkit replace -p "(.+)" -r '{kv}' -K -k Replacements.tsv | seqkit grep -r -p ^SARS > Submission.fa
+#NOTES
+#Replace headers
+#seqkit replace -p "(.+)" -r '{kv}' -i -K -k FASTAHeadersReplacements.csv Filtered.fasta > Submit.fasta
 
 #Bug catching - list all defined variables
 ( set -o posix ; set ) | less
