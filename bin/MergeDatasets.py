@@ -42,7 +42,7 @@ print("Done.")
 print("")
 
 print("Removing unwanted column headings")
-dropcols = ['Primers','Notes','Type','ExcludeSample','to_submit','ref_genome_length','pangoLEARN_version','taxon','seqName']
+dropcols = ['Primers','Notes','Type','ref_genome_length','pangoLEARN_version','taxon','seqName']
 Summary_df = Merge2.drop(dropcols, axis=1)
 output_fn = "Summary.csv"
 Summary_df.to_csv(os.path.join(data_dir, output_fn), index=False)
