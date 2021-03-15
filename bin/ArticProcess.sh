@@ -9,8 +9,8 @@ set -e #exit whenever a command exits with a non zero status
 set -u #treat undefined variables as errors
 set -o pipefail #pipe will be considered successful if all the commands are executed without errors
 
-VERSION="0.3.6"
-VERDATE="2021/03/05"
+VERSION="0.3.7"
+VERDATE="2021/03/15"
 #ANSI escape codes: 
 #Black        0;30     Dark Gray     1;30
 #Red          0;31     Light Red     1;31
@@ -293,9 +293,9 @@ ${GREEN}CHECKED:${NC}No errors in sample list.\n"
 #STEP 1: Run the guppy barcoder to demultiplex into separate barcodes
 if [ $S1 = 1 ] ; then
     printf "\n###### ${BLUE}Step 1: Running the guppy_barcoder to demultiplex the FASTQ files.${NC} ######\n\n"
-    printf "${LG}guppy_barcoder --require_barcodes_both_ends -i $FASTQRAW -s $ARTIC_OUT/fastq --arrangements_files barcode_arrs_nb96.cfg${NC}\n" | tee "${LOG}1.log"
+    printf "guppy_barcoder --require_barcodes_both_ends -i $FASTQRAW -s $ARTIC_OUT/fastq --arrangements_files barcode_arrs_nb96.cfg${NC}\n" | tee "${RUNLOG}1.log"
     
-    guppy_barcoder --require_barcodes_both_ends -i $FASTQRAW -s $ARTIC_OUT/fastq --arrangements_files "barcode_arrs_nb96.cfg" | tee -a "${RUNLOG}1.log"
+    guppy_barcoder --require_barcodes_both_ends -i $FASTQRAW -s $ARTIC_OUT/fastq --arrangements_files "barcode_arrs_nb96.cfg" | tee "${RUNLOG}1.log"
     printf "\n###### ${GREEN}Step 1: guppy_barcoder completed. ${NC} ######\n\n"
 else
     printf "###### ${GREEN}Step 1: Skipping guppy_barcoder step${NC} ######\n\n"
@@ -393,10 +393,9 @@ if [ $S4 = 1 ] ; then
     #Concatenate all of the fasta consensus data from this run
     find /$ARTIC_OUT/processed -name '*.consensus.fasta' | xargs cat > $RUNNAME.consensus.fasta
     #Cat all runs sequences together
-    find ./ -type f -name "*consensus.fasta" | xargs -I '{}'  cat {} > "all_sequences.fasta"
+    find ./ -type f -name "*consensus.fasta" | xargs -I '{}'  cat {} > "sequences.fasta"
     #Remove the additional info in the header to just leave the Sample ID
-    cat all_sequences.fasta | sed  s'/\/ARTIC\/nanopolish MN908947.3//' > all.fasta
-    mv all.fasta all_sequences.fasta
+    cat sequences.fasta | sed  s'/\/ARTIC\/nanopolish MN908947.3//' > sequences.headers.fasta
     
     echo -e "\n###### ${GREEN}Step 4: consensus sequences compiled. ${NC} ######\n\n"
 else
@@ -417,7 +416,7 @@ if [ $S5 = 1 ] ; then
     #Pull out all of the entries that should be retained
     awk -F"," '$21 ~ /True|TRUE/ {print$2 }' gisaid.csv > FASTA_HeadersInclude.csv
     #Filter the list of all sequences to only retain the correct ones
-    seqkit grep -n -f FASTA_HeadersInclude.csv ../4_Consensus/all_sequences.fasta -o ZambiaSequences.fasta
+    seqkit grep -n -f FASTA_HeadersInclude.csv ../4_Consensus/sequences.headers.fasta -o sequences.headers.filtered.fasta
     rm FASTA_HeadersInclude.csv
     
     printf "\n###### ${GREEN} Determining PANGO lineages ${NC} ######\n\n"
@@ -427,17 +426,18 @@ if [ $S5 = 1 ] ; then
     conda activate pangolin
     check_package "pangolin environment" "Please activate the appropriate environment e.g.:\n\n conda activate pangolin\n"
     #run pangolin
-    pangolin ZambiaSequences.fasta 2>&1 | tee "${LOGFOLDER}pango.log"
+    pangolin sequences.headers.filtered.fasta 2>&1 | tee "${LOGFOLDER}pango.log"
     
     printf "\n###### ${GREEN} Determining nextclade lineages ${NC} ######\n\n"
     check_package "nextclade package" "Please ensure that nextclade is installed (see https://www.npmjs.com/package/@neherlab/nextclade)\n"
     #run nextclade
-    nextclade -i ZambiaSequences.fasta -c nextclade.csv cd2>&1 | tee "${LOGFOLDER}nextclade.log"
+    nextclade -i sequences.headers.filtered.fasta -c nextclade.csv cd2>&1 | tee "${LOGFOLDER}nextclade.log"
     
     printf "\n###### ${GREEN} Merging datasets into final summary and moving intermediates${NC} ######\n\n"
     MergeDatasets.py -d "$BASEFOLDER/5_GISAID"
     check_mkdir "$BASEFOLDER/5_GISAID/intermediates"
-    #Remove intermediates
+    #Remove old intermediates
+    rm intermediates/*
     find ./ \( -name "gisaid*" -o -name "lineage*" -o -name "nextclade*" \) | xargs -I '{}' mv {} "intermediates"/ 
 
     printf "\n###### ${GREEN}Step 5: Sequencing statistics compiled. ${NC} ######\n\n"
