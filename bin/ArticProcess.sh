@@ -9,8 +9,8 @@ set -e #exit whenever a command exits with a non zero status
 set -u #treat undefined variables as errors
 set -o pipefail #pipe will be considered successful if all the commands are executed without errors
 
-VERSION="0.3.7"
-VERDATE="2021/03/15"
+VERSION="0.3.8"
+VERDATE="2021-03-17"
 #ANSI escape codes: 
 #Black        0;30     Dark Gray     1;30
 #Red          0;31     Light Red     1;31
@@ -185,10 +185,6 @@ ARTIC_OUT="$BASEFOLDER/3_Artic_Output/$RUNNAME"
 RAWDATADIR="$BASEFOLDER/1_Raw/$RUNNAME"
 
 #################################################
-#Check necessary packages and folders for all functions
-check_package "artic environment" "Please activate the appropriate environment e.g.:\n\n conda activate artic\n"
-
-#################################################
 #Determine if the necessary files and directories and arguments etc exist or create them if not
 
 #Make directories for the demultiplexed, combined and size selected fast_q files
@@ -210,6 +206,8 @@ fi
 ###############
 #Guppy Plex (step 2) and step 3 identical
 if [ $S2 = 1 ] || [ $S3 = 1 ]; then
+    #Check artic active 
+    check_package "artic" "Please activate the appropriate environment e.g.:\n\n conda activate artic\n"
     #Check primers and determine max and min sizes and primer scheme for analysis
     check_var $PRIMERS "-p (primers)"
     if [ $PRIMERS = "Sanger" ] ; then
@@ -248,6 +246,7 @@ if [ $S3 = 1 ] || [ $S6 = 1 ] ; then
     #Identify csv file
     SAMPLEFILE="$BASEFOLDER/2_SampleList_and_Rampart/Samples_Sequenced.csv"
     present $SAMPLEFILE "f"
+    
     #Check if all sample IDs are unique in the samples file
     readarray -t IDS < <(awk -F"," 'NR>1 {print$2}' $SAMPLEFILE | sort | uniq -d)
     printf '%s\n' "${IDS[@]}"
@@ -431,7 +430,7 @@ if [ $S5 = 1 ] ; then
     printf "\n###### ${GREEN} Determining nextclade lineages ${NC} ######\n\n"
     check_package "nextclade package" "Please ensure that nextclade is installed (see https://www.npmjs.com/package/@neherlab/nextclade)\n"
     #run nextclade
-    nextclade -i sequences.headers.filtered.fasta -c nextclade.csv cd2>&1 | tee "${LOGFOLDER}nextclade.log"
+    nextclade -i sequences.headers.filtered.fasta -c nextclade.csv -o nextclade.json cd2>&1 | tee "${LOGFOLDER}nextclade.log"
     
     printf "\n###### ${GREEN} Merging datasets into final summary and moving intermediates${NC} ######\n\n"
     MergeDatasets.py -d "$BASEFOLDER/5_GISAID"
@@ -449,13 +448,24 @@ if [ $S6 = 1 ] ; then
     printf "\n###### ${BLUE}Step 6: Generating JSON files for Rampart. ${NC} ######\n\n"
 
     COUNT=0
-    JSONFILE="$BASEFOLDER/2_SampleList_and_Rampart/${RUNNAME}_run_configuration.json"
+    
+    #Store output in run specific folder
+    RAMPARTOUTPUT="$BASEFOLDER/2_SampleList_and_Rampart/${RUNNAME}/"
+    check_mkdir $RAMPARTOUTPUT
+    JSONFILE="${RAMPARTOUTPUT}run_configuration.json"
     #Start the JSON File
     printf "{
     \"title\": \"Run $RUNNAME\",
     \"basecalledPath\": \"fastq_pass\",
     \"samples\": [" > $JSONFILE
-        
+    
+    #Rampart can only deal with the first 24 barcodes natively. If >24 then rewrite output to recognise guppy output
+    if [ ${#BARCODES[@]} -gt 24 ] ; then
+        PREFIX="barcode"
+    else
+        PREFIX="NB"
+    fi
+
     for BARCODE in "${BARCODES[@]}"; do 
         SAMPLE=${SAMPLES[$COUNT]}
         #Ensure that all barcodes are 2 digit
@@ -465,7 +475,7 @@ if [ $S6 = 1 ] ; then
         printf "    {
         \"name\": \"$SAMPLE ($BARCODE)\",
         \"description\": \"\",
-        \"barcodes\": [ \"NB$BARCODE\" ]" >> $JSONFILE
+        \"barcodes\": [ \"${PREFIX}${BARCODE}\" ]" >> $JSONFILE
         if [ ${#BARCODES[@]} == $((COUNT+1)) ]; then
             echo -e "    }" >> $JSONFILE #If last entry then there shouldn't be a comma
         else
