@@ -249,7 +249,6 @@ if [ $S3 = 1 ] || [ $S6 = 1 ] ; then
     
     #Check if all sample IDs are unique in the samples file
     readarray -t IDS < <(awk -F"," 'NR>1 {print$2}' $SAMPLEFILE | sort | uniq -d)
-    printf '%s\n' "${IDS[@]}"
     if [ ${#IDS[@]} -gt 0 ]; then
         printf "${RED}ERROR:${NC} The following duplicate samples exist in $SAMPLEFILE. 
         Please correct so that every uniqueID (column 2) is unique to the entire list.\n"
