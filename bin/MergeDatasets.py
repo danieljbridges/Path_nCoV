@@ -38,7 +38,8 @@ print("Done.")
 print("")
 
 print("Removing unwanted column headings")
-dropcols = ['PCRPrimers','Type','ref_genome_length','pangoLEARN_version','taxon','seqName', 'qc.mixedSites.mixedSitesThreshold','qc.mixedSites.score','qc.mixedSites.status','qc.mixedSites.totalMixedSites	','qc.privateMutations.cutoff','qc.missingData.missingDataThreshold','totalNonACGTNs','nonACGTNs']
+dropcols = ['PCRPrimers','Type','ref_genome_length','pangoLEARN_version','taxon','seqName','qc.mixedSites.mixedSitesThreshold','qc.mixedSites.score','qc.mixedSites.status','qc.mixedSites.totalMixedSites','qc.privateMutations.cutoff','qc.missingData.missingDataThreshold','totalNonACGTNs','nonACGTNs']
+
 Summary_df = Merge2.drop(dropcols, axis=1)
 output_fn = "Sequencing_Summary.csv"
 Summary_df.to_csv(os.path.join(data_dir, output_fn), index=False)
