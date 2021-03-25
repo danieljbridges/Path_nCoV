@@ -247,24 +247,24 @@ if [ $S3 = 1 ] || [ $S6 = 1 ] ; then
     SAMPLEFILE="$BASEFOLDER/2_SampleList_and_Rampart/Samples_Sequenced.csv"
     present $SAMPLEFILE "f"
     
-    #Check if all sample IDs are unique in the samples file
-    readarray -t IDS < <(awk -F"," 'NR>1 {print$2}' $SAMPLEFILE | sort | uniq -d)
+    #Check if all of the seqIDs are unique in the samples file
+    readarray -t IDS < <(awk -F"," 'NR>1 {if ($8) print$8}' $SAMPLEFILE | sort | uniq -d)
     if [ ${#IDS[@]} -gt 0 ]; then
-        printf "${RED}ERROR:${NC} The following duplicate samples exist in $SAMPLEFILE. 
-        Please correct so that every uniqueID (column 2) is unique to the entire list.\n"
+        printf "${RED}ERROR:${NC} The following duplicate seqIDs exist in $SAMPLEFILE. 
+        Please correct so that every seqID (column 8) is unique to the entire list (empty records are not included).\n"
         printf '%s\n' "${IDS[@]}"
         exit
     fi
     
     #Read in Samples
-    readarray -t SAMPLES < <(awk -F"," '$7 ~ /'$RUNNAME'/ {print$2}' $SAMPLEFILE)
+    readarray -t SAMPLES < <(awk -F"," '$9 ~ /'$RUNNAME'/ {print$8}' $SAMPLEFILE)
     if (( ${#SAMPLES[@]} == 0 )); then
         printf "\n${RED}ERROR:${NC} SAMPLES array is empty \nExiting script\n\n"
         exit
     fi
     
     #Read in barcodes
-    readarray -t BARCODES < <(awk -F"," '$7 ~ /'$RUNNAME'/ {print$1}' $SAMPLEFILE)
+    readarray -t BARCODES < <(awk -F"," '$9 ~ /'$RUNNAME'/ {print$7}' $SAMPLEFILE)
     if (( ${#BARCODES[@]} == 0 )); then
         printf "\n${RED}ERROR:${NC} BARCODES array is empty \nExiting script\n\n"
         exit
@@ -360,11 +360,7 @@ if [ $S3 = 1 ] ; then
                 fi
                 
                 #Make samplename subdirectory if required
-                if [ ! -d $SAMPLENAME ] ; then
-                    mkdir $SAMPLENAME
-                    echo "Making subdirectory $SAMPLENAME"
-                fi
-                
+                check_mkdir $SAMPLENAME
                 #Move output from what was produced into its own directory
                 find ./ -type f -name "$SAMPLENAME*" | xargs -I '{}'  mv {} "$SAMPLENAME"/
                 #Move directory to another level for clarity
@@ -393,7 +389,8 @@ if [ $S4 = 1 ] ; then
     #Cat all runs sequences together
     find ./ -type f -name "*consensus.fasta" | xargs -I '{}'  cat {} > "sequences.fasta"
     #Remove the additional info in the header to just leave the Sample ID
-    cat sequences.fasta | sed  s'/\/ARTIC\/nanopolish MN908947.3//' > sequences.headers.fasta
+    cat sequences.fasta | sed  s'/\/ARTIC\/nanopolish MN908947.3//' > allseq.fasta
+    rm sequences.fasta
     
     echo -e "\n###### ${GREEN}Step 4: consensus sequences compiled. ${NC} ######\n\n"
 else
@@ -413,8 +410,10 @@ if [ $S5 = 1 ] ; then
     cd "$BASEFOLDER/5_GISAID"
     #Pull out all of the entries that should be retained
     awk -F"," '$21 ~ /True|TRUE/ {print$2 }' gisaid.csv > FASTA_HeadersInclude.csv
+    
+    FILTEREDSEQ="filteredseq.fasta"
     #Filter the list of all sequences to only retain the correct ones
-    seqkit grep -n -f FASTA_HeadersInclude.csv ../4_Consensus/sequences.headers.fasta -o sequences.headers.filtered.fasta
+    seqkit grep -n -f FASTA_HeadersInclude.csv ../4_Consensus/allseq.fasta -o $FILTEREDSEQ
     rm FASTA_HeadersInclude.csv
     
     printf "\n###### ${GREEN} Determining PANGO lineages ${NC} ######\n\n"
@@ -424,14 +423,14 @@ if [ $S5 = 1 ] ; then
     conda activate pangolin
     check_package "pangolin environment" "Please activate the appropriate environment e.g.:\n\n conda activate pangolin\n"
     #run pangolin
-    pangolin sequences.headers.filtered.fasta 2>&1 | tee "${LOGFOLDER}pango.log"
+    pangolin $FILTEREDSEQ 2>&1 | tee "${LOGFOLDER}pango.log"
     
     printf "\n###### ${GREEN} Determining nextclade lineages ${NC} ######\n\n"
     check_package "nextclade package" "Please ensure that nextclade is installed (see https://www.npmjs.com/package/@neherlab/nextclade)\n"
     #run nextclade
-    nextclade -i sequences.headers.filtered.fasta -c nextclade.csv -o nextclade.json cd2>&1 | tee "${LOGFOLDER}nextclade.log"
-    
-    printf "\n###### ${GREEN} Merging datasets into final summary and moving intermediates${NC} ######\n\n"
+    nextclade -i $FILTEREDSEQ -c nextclade.csv -o nextclade.json cd2>&1 | tee "${LOGFOLDER}nextclade.log"
+        
+    #printf "\n###### ${GREEN} Merging datasets into final summary and moving intermediates${NC} ######\n\n"
     MergeDatasets.py -d "$BASEFOLDER/5_GISAID"
     check_mkdir "$BASEFOLDER/5_GISAID/intermediates"
     #Remove old intermediates

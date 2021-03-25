@@ -2,10 +2,6 @@
 # coding: utf-8
 # Merge datasets from sequencing runs
 # ----------------------------------------
-# Example usage:
-#   python run_gisaid-statistics.py -d data/WGS
-#
-# JHendry, 2021/01/01
 
 import os
 import pandas as pd
@@ -42,7 +38,7 @@ print("Done.")
 print("")
 
 print("Removing unwanted column headings")
-dropcols = ['Primers','Type','ref_genome_length','pangoLEARN_version','taxon','seqName']
+dropcols = ['PCRPrimers','Type','ref_genome_length','pangoLEARN_version','taxon','seqName']
 Summary_df = Merge2.drop(dropcols, axis=1)
 output_fn = "Summary.csv"
 Summary_df.to_csv(os.path.join(data_dir, output_fn), index=False)
