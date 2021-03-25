@@ -53,7 +53,7 @@ print("")
 print("Preparing directories...")
 rampart_dir = os.path.join(data_dir, "2_SampleList_and_Rampart")
 artic_dir = os.path.join(data_dir, "3_Artic_Output")
-output_dir = os.path.join("5_GISAID")
+output_dir = os.path.join(data_dir, "5_GISAID")
 if not os.path.isdir(output_dir):
     os.makedirs(output_dir)
 print("  Rampart directory: %s" % rampart_dir)
@@ -83,26 +83,26 @@ print("")
 
 
 # LOAD SAMPLE METADATA
-print("Checking sample metadata...")
+print("Checking sample processing details...")
 sample_df = pd.read_csv(os.path.join(rampart_dir, "Samples_Sequenced.csv"))
-print("  Total runs: %d" % sample_df["ExpID"].unique().shape[0])
-print("  Total samples: %d" % sample_df["UniqueID"].unique().shape[0])
-print("  Unique samples: %d" % sample_df["Sample ID"].unique().shape[0])
-print("  Barcodes used: %d" % sample_df["Barcode"].unique().shape[0])
+print("  Total runs: %d" % sample_df["SeqRun"].unique().shape[0])
+print("  Total samples: %d" % sample_df["SeqID"].unique().shape[0])
+print("  Unique samples: %d" % sample_df["SampleID"].unique().shape[0])
+print("  Barcodes used: %d" % sample_df["SeqBarcode"].unique().shape[0])
 # Map from Unique ID to barcode ID
-sample_dt = { row["UniqueID"]: row["Barcode"] for _, row in sample_df.iterrows() }
+sample_dt = { row["SeqID"]: row["SeqBarcode"] for _, row in sample_df.iterrows() }
 print("Done.")
 print("")
 
 
-# COMPUTE GISAID STATISTICS
-print("Computing GISAID statistics...")
+# COMPUTE SEQUENCING STATISTICS
+print("Computing sequencing statistics...")
 
 # Prepare storage
 dts = []
 
 # Iterate over runs
-print("  Run  Samples complete")
+print("  Run  Samples/Complete")
 for r in rs:
     
     # Define run directory
@@ -164,13 +164,13 @@ print("")
 print("Merging results with sample list...")
 print("  No. samples...")
 print("    ...in sample list: %d" % sample_df.shape[0])
-print("    ...with GISAID statistics: %d" % df.shape[0])
+print("    ...with consensus sequence: %d" % df.shape[0])
 # Merge
 merged_df = pd.merge(left=df,
                      right=sample_df,
                      left_on=["run", "barcode"],
-                     right_on=["ExpID", "Barcode"])
-merged_df.drop(["Barcode", "UniqueID", "ExpID"], 1, inplace=True) # clean columns
+                     right_on=["SeqRun", "SeqBarcode"])
+merged_df.drop(["SeqBarcode", "SeqID", "SeqRun"], 1, inplace=True) # clean columns
 print("    ...after merging: %d" % merged_df.shape[0])
 print("Done.")
 print("")
@@ -185,7 +185,7 @@ print("")
 
 # Remove duplicates
 print("Taking highest depth for duplicate samples...")
-grps = filtered_df.groupby("Sample ID")
+grps = filtered_df.groupby("SampleID")
 
 l_dfs = []
 print("  {:<8}  {:<8}  {:<10}  {:<4}".format("Sample", "No. dup.", "Keep", "Depth"))
