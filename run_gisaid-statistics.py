@@ -127,9 +127,9 @@ for r in rs:
             
             # Identifiers
             stats_dt = {}
-            stats_dt["run"] = r
-            stats_dt["sample"] = s
-            stats_dt["barcode"] = b
+            stats_dt["SeqRun"] = r
+            stats_dt["SeqID"] = s
+            stats_dt["SeqBarcode"] = b
 
             # Calc. most statistics from coverage file
             coverage_df = load_coverage_files(sample_dir)
@@ -166,65 +166,37 @@ print("  No. samples...")
 print("    ...in sample list: %d" % sample_df.shape[0])
 print("    ...with consensus sequence: %d" % df.shape[0])
 # Merge
-merged_df = pd.merge(left=df,
-                     right=sample_df,
-                     left_on=["run", "barcode"],
-                     right_on=["SeqRun", "SeqBarcode"])
-merged_df.drop(["SeqBarcode", "SeqID", "SeqRun"], 1, inplace=True) # clean columns
+merged_df = pd.merge(left=sample_df,
+                     right=df,
+                     left_on=["SeqRun", "SeqBarcode", "SeqID"],
+                     right_on=["SeqRun", "SeqBarcode", "SeqID"])
 print("    ...after merging: %d" % merged_df.shape[0])
 print("Done.")
 print("")
 
-
-# FILTER FOR SUBMISSION
-print("Removing controls...")
-filtered_df = merged_df.query("Type != 'Control'")
-print("  Samples remaining: %d" % merged_df.shape[0])
-print("Done.")
-print("")
-
-# Remove duplicates
-print("Taking highest depth for duplicate samples...")
-grps = filtered_df.groupby("SampleID")
+# Highlight duplicates
+print("Highlighting highest depth for duplicate samples...")
+grps = merged_df.groupby("SampleID")
 
 l_dfs = []
 print("  {:<8}  {:<8}  {:<10}  {:<4}".format("Sample", "No. dup.", "Keep", "Depth"))
 for n, sdf in grps:
     n_dup = sdf.shape[0]
-    if n_dup > 1:
-        keep = sdf.sort_values("sequencing_depth_avg", ascending=False).iloc[0]
-        print("  {:<8}  {:<8}  {:<10}  {:<4.1f}".format(n, n_dup, keep["sample"], keep["sequencing_depth_avg"]))
-    else:
-        keep = sdf.iloc[0]
+    keep = sdf.sort_values("sequencing_depth_avg", ascending=False)
+    values = sdf.sort_values("sequencing_depth_avg", ascending=False).iloc[0]
+    keep["Duplicates"] = [False]+[True]*(n_dup-1)
+    if n_dup > 1 :
+        print("  {:<8}  {:<8} {:<25} {:<4.1f}".format(n, n_dup, values['SeqID'], values['sequencing_depth_avg']))
     l_dfs.append(keep)
-filtered_df = pd.concat(l_dfs, 1).transpose()
-print("  Samples remaining: %d" % filtered_df.shape[0])
+retained_df = pd.concat(l_dfs, 0)
+print("  Samples remaining: %d" % retained_df.shape[0])
 print("Done.")
 print("")
-
-# Remove low quality
-depth_threshold = 50
-breadth_threshold = 0.5
-print("Filtering low quality samples...")
-print("  Average depth >= %dX" % depth_threshold)
-print("  Coverage breadth >= %.f%%" % (100*breadth_threshold))
-filtered_df.query("sequencing_depth_avg >= @depth_threshold" + \
-                  "& sequencing_depth_avg >= @depth_threshold", 
-                  inplace=True)
-print("  Samples remaining: %d" % filtered_df.shape[0])
-print("Done.")
-print("")
-
-# Add `to_submit` column, and write keep list
-keep_list = filtered_df["sample"].values
-merged_df.insert(20, "to_submit", [True if s in keep_list else False for s in merged_df["sample"]])
-
 
 # WRITE RESULTS
 print("Writing results...")
 output_fn = "gisaid.csv"
-merged_df.to_csv(os.path.join(output_dir, output_fn), index=False)
-#pd.Series(keep_list).to_csv(os.path.join(output_dir, output_fn.replace("gisaid","inclusion-list")), index=False)
+retained_df.to_csv(os.path.join(output_dir, output_fn), index=False)
 print("  To: %s" % os.path.join(output_dir, output_fn))
 print("Done.")
 print("")

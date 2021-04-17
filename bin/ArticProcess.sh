@@ -40,7 +40,7 @@ function Help {
    basefolder/4_Consensus                   Consensus sequences multi-fasta per run
    basefolder/5_GISAID                      Sequences for uploading to GISAID
    
-   Syntax: $(basename "$0") [-123|b|n|p|r|]
+   Syntax: $(basename "$0") [-123456hv|b|r|m|p|s]
    Version: $VERSION, $VERDATE
    
     Mandatory args:
@@ -159,7 +159,7 @@ shift $((OPTIND -1))
 
 #==============CHECK ALL VARIABLES AND REQUIREMENTS ARE MET==================
 #Create a space between cmd
-printf "\n${ORANGE}##### Running ArticProcess.sh Version $VERSION ##### ${NC}\n"
+printf "\n${ORANGE}##### Running `basename $0` Version $VERSION ##### ${NC}\n"
 
 #################################################
 #Enter default values if parameter not defined or build from exisiting args
@@ -198,7 +198,7 @@ present $RAWDATADIR "d"
 ###############
 #Guppy Barcoder (step 1)
 if [ $S1 = 1 ] ; then
-    check_package "guppy_barcoder"
+    check_package "guppy_barcoder" "Please install from ONT website\n"
     FASTQRAW="$RAWDATADIR/fastq_pass"
     present $FASTQRAW "d"
 fi
