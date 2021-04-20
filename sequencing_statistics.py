@@ -327,7 +327,7 @@ print("")
 
 # WRITE RESULTS
 print("Writing qc_list of samples for publishing...")
-output_fn = "qc_passed_samples.csv"
+output_fn = "intermediates/qc_passed_samples.csv"
 filtered_df.to_csv(os.path.join(gisaid_dir, output_fn), index=False)
 print("  To: %s" % os.path.join(gisaid_dir, output_fn))
 print("Done.")

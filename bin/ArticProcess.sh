@@ -9,8 +9,8 @@ set -e #exit whenever a command exits with a non zero status
 set -u #treat undefined variables as errors
 set -o pipefail #pipe will be considered successful if all the commands are executed without errors
 
-VERSION="0.3.8"
-VERDATE="2021-03-17"
+VERSION="0.4.0"
+VERDATE="2021-04-19"
 #ANSI escape codes: 
 #Black        0;30     Dark Gray     1;30
 #Red          0;31     Light Red     1;31
@@ -392,7 +392,7 @@ if [ $S4 = 1 ] ; then
     cat sequences.fasta | sed  s'/\/ARTIC\/nanopolish MN908947.3//' > allseq.fasta
     rm sequences.fasta
     
-    echo -e "\n###### ${GREEN}Step 4: consensus sequences compiled. ${NC} ######\n\n"
+    echo -e "\n###### ${GREEN}Step 4: Consensus sequences compiled. ${NC} ######\n\n"
 else
     printf "###### ${GREEN}Step 4: Skipping consensus sequences ${NC} ######\n\n"
 fi
@@ -401,21 +401,10 @@ fi
 if [ $S5 = 1 ] ; then
     printf "\n###### ${BLUE}Step 5: Generating statistics and lineages on sequences. ${NC} ######\n"
     
-    printf "\n###### ${GREEN} Running run_gisaid-statistics.py script ${NC} ######\n\n"
-    #Run stats
-    cd $BASEFOLDER
-    run_gisaid-statistics.py -d $BASEFOLDER 2>&1 | tee "${LOGFOLDER}gisaid.log"
-    
-    printf "\n###### ${GREEN} Filtering to remove unwanted sequences from fasta file ${NC} ######\n\n"
     cd "$BASEFOLDER/5_GISAID"
-    #Pull out all of the entries that should be retained
-    awk -F"," '$21 ~ /True|TRUE/ {print$2 }' gisaid.csv > FASTA_HeadersInclude.csv
-    
-    FILTEREDSEQ="filteredseq.fasta"
-    #Filter the list of all sequences to only retain the correct ones
-    seqkit grep -n -f FASTA_HeadersInclude.csv ../4_Consensus/allseq.fasta -o $FILTEREDSEQ
-    rm FASTA_HeadersInclude.csv
-    
+    #Define file to run on
+    ALLSEQ="$BASEFOLDER/4_Consensus/allseq.fasta"
+
     printf "\n###### ${GREEN} Determining PANGO lineages ${NC} ######\n\n"
     CONDA=`which conda | sed s'/\/condabin//' | sed s'/bin\///' | sed s'/\/conda//'`
     source $CONDA/etc/profile.d/conda.sh 
@@ -423,20 +412,36 @@ if [ $S5 = 1 ] ; then
     conda activate pangolin
     check_package "pangolin environment" "Please activate the appropriate environment e.g.:\n\n conda activate pangolin\n"
     #run pangolin
-    pangolin $FILTEREDSEQ 2>&1 | tee "${LOGFOLDER}pango.log"
+    pangolin $ALLSEQ 2>&1 | tee "${LOGFOLDER}pango.log"
+    mv lineage_report.csv intermediates/
     
     printf "\n###### ${GREEN} Determining nextclade lineages ${NC} ######\n\n"
     check_package "nextclade package" "Please ensure that nextclade is installed (see https://www.npmjs.com/package/@neherlab/nextclade)\n"
     #run nextclade
-    nextclade -i $FILTEREDSEQ -c nextclade.csv -o nextclade.json cd2>&1 | tee "${LOGFOLDER}nextclade.log"
+    nextclade -i $ALLSEQ -c nextclade.csv -o nextclade.json cd2>&1 | tee "${LOGFOLDER}nextclade.log"
+    mv nextclade* intermediates/
         
-    #printf "\n###### ${GREEN} Merging datasets into final summary and moving intermediates${NC} ######\n\n"
-    MergeDatasets.py -d "$BASEFOLDER/5_GISAID"
-    check_mkdir "$BASEFOLDER/5_GISAID/intermediates"
-    #Remove old intermediates
-    rm intermediates/*
-    find ./ \( -name "gisaid*" -o -name "lineage*" -o -name "nextclade*" \) | xargs -I '{}' mv {} "intermediates"/ 
-
+    printf "\n###### ${GREEN} Determining sequencing statistics of samples run ${NC} ######\n\n"
+    sequencing_statistics.py -d $BASEFOLDER 2>&1 | tee "${LOGFOLDER}gisaid.log"
+    
+    printf "\n###### ${GREEN} Filtering to remove duplicate and low quality sequences from fasta file ${NC} ######\n\n"
+    
+    #Pull out all of the non-duplicate SeqID entries that should be retained
+    awk -F"," ' {print$1 }' intermediates/qc_passed_samples.csv > qc_samples.csv
+    #awk -F"," '$24 ~ /False|FALSE/ {print$8 }' gisaid.csv > FASTA_HeadersInclude.csv
+    #Look for duplicates in the list (second check)
+    DUPES=`cat qc_samples.csv | sort | uniq -d`
+    if [ -n "$DUPES" ] ; then
+        printf "${RED} ERROR: Duplicate entries found in the list of SeqIDs to retain. \n Exiting script\n ${NC}\n"
+        printf "$DUPES\n"
+        exit
+    fi
+    
+    QCSEQ="filteredseq.fasta"
+    #Filter the list of all sequences to only retain the correct ones
+    seqkit grep -n -f qc_samples.csv $ALLSEQ -o $QCSEQ
+    rm qc_samples.csv
+        
     printf "\n###### ${GREEN}Step 5: Sequencing statistics compiled. ${NC} ######\n\n"
 else
     printf "###### ${GREEN}Step 5: Skipping generating sequencing statistics${NC} ######\n\n"
@@ -491,16 +496,3 @@ else
 fi
 
 exit
-
-######################## NOTES ##########
-#TO DO
-
-#NOTES
-#Replace headers
-#seqkit replace -p "(.+)" -r '{kv}' -i -K -k FASTAHeadersReplacements.csv Filtered.fasta > Submit.fasta
-
-#Bug catching - list all defined variables
-( set -o posix ; set ) | less
-
-
-
