@@ -338,7 +338,7 @@ print("  Done")
 # WRITE RESULTS
 print("  Writing results...")
 runsummary_fn = "runsummary.csv"
-runsummary_df.to_csv(os.path.join(gisaid_dir, runsummary_fn), index=False)
+runsummary_df.to_csv(os.path.join(gisaid_dir, runsummary_fn), index=True)
 print("  To: %s" % os.path.join(gisaid_dir, runsummary_fn))
 print("Done.")
 print("")
