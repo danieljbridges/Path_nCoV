@@ -1,4 +1,6 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
+# coding: utf-8
+# ----------------------------------------
 # Compute statistics for GISAID submission
 # ----------------------------------------
 #
@@ -92,13 +94,13 @@ print("        %s Samples, of which...." % samples_df[samples_df.Type=='Sample']
 print("            %s are unique" % samples_df[samples_df.Type=='Sample']["SampleID"].unique().shape[0])
 
 print("Removing samples that have not been sequenced")
-sample_df = samples_df[samples_df.SeqRun.notnull()]
-print("    %s sequencing reactions have been performed consisting of..." % sample_df.shape[0])
-print("        %s Controls" % sample_df[sample_df.Type=='Control'].shape[0])
-print("        %s Samples, of which...." % sample_df[sample_df.Type=='Sample'].shape[0])
-print("            %s are unique" % sample_df[sample_df.Type=='Sample']["SampleID"].unique().shape[0])
+seqsamples_df = samples_df[samples_df.SeqRun.notnull()]
+print("    %s sequencing reactions have been performed consisting of..." % seqsamples_df.shape[0])
+print("        %s Controls" % seqsamples_df[seqsamples_df.Type=='Control'].shape[0])
+print("        %s Samples, of which...." % seqsamples_df[seqsamples_df.Type=='Sample'].shape[0])
+print("            %s are unique" % seqsamples_df[seqsamples_df.Type=='Sample']["SampleID"].unique().shape[0])
 # Map from Unique ID to barcode ID
-sample_dt = { row["SeqID"]: row["SeqBarcode"] for _, row in sample_df.iterrows() }
+sample_dt = { row["SeqID"]: row["SeqBarcode"] for _, row in seqsamples_df.iterrows() }
 print("Done.")
 print("")
 
@@ -181,6 +183,7 @@ print("Done.")
 print("")
 
 #Find the other stats files for merging
+print("-" * 80)
 print("Combining with other data outputs")
 if os.path.isfile(os.path.join(gisaid_dir,"intermediates/lineage_report.csv")) and os.path.isfile(os.path.join(gisaid_dir,"intermediates/nextclade.csv")):
     print ("  PANGO and nextclade files found. Reading in data")
@@ -202,11 +205,9 @@ non_match_gp = l_func(gisaid_df["SeqID"], pango_df["taxon"])
 non_match_gn = l_func(gisaid_df["SeqID"], nextclade_df["seqName"]) 
 if len(non_match_gp) > 0 :
     print("  A total of %s sequence ids do not match between gisaid and PANGO" % len(non_match_gp))
-    non_match_gp.to_csv(os.path.join(gisaid_dir, "gisaid-pango_mismatch"), index=False)
     exit()
 elif len(non_match_gn) > 0 :
     print("  A total of %s sequence ids do not match between gisaid and nextclade" % len(non_match_gn))
-    non_match_gn.to_csv(os.path.join(gisaid_dir, "gisaid-nextclade_mismatch"), index=False)
     exit()
 else:
     print("  All sequences match across the three files")
@@ -224,10 +225,78 @@ sequenced_df = Merge2.drop(dropcols, axis=1)
 print("Done.")
 print("")
 
+# MERGE WITH SAMPLE LIST
+print("Merging sequenced samples with sample list...")
+print("  No. samples...")
+print("    ...in sample list: %d" % seqsamples_df.shape[0])
+print("    ...with consensus sequence: %d" % gisaid_df.shape[0])
+merged_df = pd.merge(left=seqsamples_df,
+                     right=sequenced_df,
+                     left_on=["SeqRun", "SeqBarcode", "SeqID"],
+                     right_on=["SeqRun", "SeqBarcode", "SeqID"],
+                    how='outer')
+print("    ...after merging: %d" % merged_df.shape[0])
+print("Done.")
+print("")
+
+qc_depth = 50
+qc_breadth = 50
+
+print("Removing controls, unsequenced samples, those marked for exclusion or failing qc parameters")
+keepers_df = merged_df.query("sequencing_depth_avg >= @qc_depth" +
+                             "& coverage_breadth >= @qc_breadth" +
+                             "& ExcludeSample != 'Y'" +
+                             "& Type == 'Sample'" ,
+                             inplace=False)
+print("    Samples remaining: %d" % keepers_df.shape[0])
+print("Done")
+print("")
+
+#Highlight duplicates
+print("Highlighting highest depth for duplicate samples...")
+
+l_dfs = []
+print("  {:<8}  {:<8}  {:<10}  {:<4}".format("Sample", "No. dup.", "Keep", "Depth"))
+
+
+for n, sdf in keepers_df.groupby("SampleID"):
+    n_dup = sdf.shape[0]
+    if n_dup > 1:
+        keep = sdf.sort_values(by =['GISAID_Accession_Number','coverage_breadth','sequencing_depth_avg'], 
+                               ascending=[False,False,False], na_position='last').iloc[0]
+        print("  {:<8}  {:<8}  {:<10}  {:<4.1f}".format(n, n_dup, keep["SampleID"], keep["sequencing_depth_avg"]))
+    else:
+        keep = sdf.iloc[0]
+    l_dfs.append(keep)
+keepers_df = pd.concat(l_dfs, 1).transpose()
+print("  Submittable samples: %d" % keepers_df.shape[0])
+print("Done.")
+print("")
+
+print("Highlighting submittable samples")
+keeperslist_df = keepers_df.filter(['SeqID','SeqRun','SeqBarcode'])
+keeperslist_df["Submittable"] = True
+alldata_df = pd.merge(left=merged_df,
+                     right=keeperslist_df,
+                     left_on=["SeqRun", "SeqBarcode", "SeqID"],
+                     right_on=["SeqRun", "SeqBarcode", "SeqID"],
+                    how='outer')
+alldata_df = alldata_df.fillna({'Submittable' : False})
+alldata_df = alldata_df.drop('ExcludeSample', axis=1)
+
+#WRITE RESULTS
+print("Writing all sequencing data...")
+output_fn = "allsequencedata.tsv"
+alldata_df.to_csv(os.path.join(gisaid_dir, output_fn), sep = '\t', index=False)
+print("  To: %s" % os.path.join(gisaid_dir, output_fn))
+print("Done.")
+print("")
+
 #Calculate per run summaries
+print("-" * 80)
 print("Summarising output per run...")
 print("  For all samples added to a sequencing run")
-sample_sum = sample_df.groupby("SeqRun").agg(
+sample_sum = seqsamples_df.groupby("SeqRun").agg(
     samples=('SeqID', 'count')
 )
 
@@ -239,8 +308,6 @@ sequenced_sum = sequenced_df.groupby('SeqRun').agg(
     all_score_mean=('qc.overallScore','mean')
 )
 
-qc_depth = 50
-qc_breadth = 50
 print("  For all samples with depth >{:<2}X and breadth >{:<2}% ".format(qc_depth, qc_breadth))
 qc = sequenced_df[(sequenced_df.sequencing_depth_avg > qc_depth) & 
                     (sequenced_df.coverage_breadth > qc_breadth)]
@@ -276,65 +343,8 @@ print("  To: %s" % os.path.join(gisaid_dir, runsummary_fn))
 print("Done.")
 print("")
 
-# MERGE WITH SAMPLE LIST
-print("Merging sequenced samples with sample list...")
-print("  No. samples...")
-print("    ...in sample list: %d" % sample_df.shape[0])
-print("    ...with consensus sequence: %d" % gisaid_df.shape[0])
-merged_df = pd.merge(left=sample_df,
-                     right=gisaid_df,
-                     left_on=["SeqRun", "SeqBarcode", "SeqID"],
-                     right_on=["SeqRun", "SeqBarcode", "SeqID"])
-print("    ...after merging: %d" % merged_df.shape[0])
-print("Done.")
-print("")
-
-print("Removing records where ExcludeSample = Y")
-merged_df = merged_df[merged_df.ExcludeSample!='Y']
-print("    Samples remaining: %d" % merged_df.shape[0])
-print("Done")
-print("")
-
-# Highlight duplicates
-print("Highlighting highest depth for duplicate samples...")
-
-l_dfs = []
-print("  {:<8}  {:<8}  {:<10}  {:<4}".format("Sample", "No. dup.", "Keep", "Depth"))
-
-
-for n, sdf in merged_df.groupby("SampleID"):
-    n_dup = sdf.shape[0]
-    if n_dup > 1:
-        keep = sdf.sort_values(by =['GISAID_Accession_Number','coverage_breadth','sequencing_depth_avg'], 
-                               ascending=[False,False,False], na_position='last').iloc[0]
-        print("  {:<8}  {:<8}  {:<10}  {:<4.1f}".format(n, n_dup, keep["SampleID"], keep["sequencing_depth_avg"]))
-    else:
-        keep = sdf.iloc[0]
-    l_dfs.append(keep)
-filtered_df = pd.concat(l_dfs, 1).transpose()
-print("  Samples remaining: %d" % filtered_df.shape[0])
-print("Done.")
-print("")
-
-# Remove low quality
-print("Filtering low quality samples...")
-filtered_df.query("sequencing_depth_avg >= @qc_depth" + \
-                  "& coverage_breadth >= @qc_breadth", 
-                  inplace=True)
-print("  Samples remaining: %d" % filtered_df.shape[0])
-print("Done.")
-print("")
-
-# WRITE RESULTS
-print("Writing qc_list of samples for publishing...")
-output_fn = "intermediates/qc_passed_samples.csv"
-filtered_df.to_csv(os.path.join(gisaid_dir, output_fn), index=False)
-print("  To: %s" % os.path.join(gisaid_dir, output_fn))
-print("Done.")
-print("")
-
-
 print("-" * 80)
 print("Runtime: %s" % str(datetime.timedelta(seconds=time.time() - start_time)))
 print("Finished at: %s" % datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 print("=" * 80)
+

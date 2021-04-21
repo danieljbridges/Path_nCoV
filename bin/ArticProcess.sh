@@ -424,11 +424,11 @@ if [ $S5 = 1 ] ; then
     printf "\n###### ${GREEN} Determining sequencing statistics of samples run ${NC} ######\n\n"
     sequencing_statistics.py -d $BASEFOLDER 2>&1 | tee "${LOGFOLDER}gisaid.log"
     
-    printf "\n###### ${GREEN} Filtering to remove duplicate and low quality sequences from fasta file ${NC} ######\n\n"
+    printf "\n###### ${GREEN} Filtering to remove sequences that should not be submitted from the fasta file ${NC} ######\n\n"
     
-    #Pull out all of the non-duplicate SeqID entries that should be retained
-    awk -F"," ' {print$1 }' intermediates/qc_passed_samples.csv > qc_samples.csv
-    #awk -F"," '$24 ~ /False|FALSE/ {print$8 }' gisaid.csv > FASTA_HeadersInclude.csv
+    #Pull out all of the submittable SeqID entries that should be retained
+    awk -F"\t" '$58 ~ /True/ {print$8 }' allsequencedata.tsv > qc_samples.csv
+    
     #Look for duplicates in the list (second check)
     DUPES=`cat qc_samples.csv | sort | uniq -d`
     if [ -n "$DUPES" ] ; then
@@ -437,9 +437,8 @@ if [ $S5 = 1 ] ; then
         exit
     fi
     
-    QCSEQ="filteredseq.fasta"
     #Filter the list of all sequences to only retain the correct ones
-    seqkit grep -n -f qc_samples.csv $ALLSEQ -o $QCSEQ
+    seqkit grep -n -f qc_samples.csv $ALLSEQ -o qc_seq.fasta
     rm qc_samples.csv
         
     printf "\n###### ${GREEN}Step 5: Sequencing statistics compiled. ${NC} ######\n\n"
