@@ -427,7 +427,7 @@ if [ $S5 = 1 ] ; then
     printf "\n###### ${GREEN} Filtering to remove sequences that should not be submitted from the fasta file ${NC} ######\n\n"
     
     #Pull out all of the submittable SeqID entries that should be retained
-    awk -F"\t" '$58 ~ /True/ {print$8 }' allsequencedata.tsv > qc_samples.csv
+    awk -F"\t" '$59 ~ /True/ {print$8 }' allsequencedata.tsv > qc_samples.csv
     
     #Look for duplicates in the list (second check)
     DUPES=`cat qc_samples.csv | sort | uniq -d`
