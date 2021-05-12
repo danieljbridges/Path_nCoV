@@ -426,8 +426,12 @@ if [ $S5 = 1 ] ; then
     
     printf "\n###### ${GREEN} Filtering to remove sequences that should not be submitted from the fasta file ${NC} ######\n\n"
     
-    #Pull out all of the submittable SeqID entries that should be retained
-    awk -F"\t" '$59 ~ /True/ {print$8 }' allsequencedata.tsv > qc_samples.csv
+    #Pull out all of the submittable SeqID entries that should be retained by searching column headers
+    SEARCHCOL=`awk -F"\t" 'NR==1{ for (i=1;i<=NF;i++) if ($i == "Submittable") print i }' allsequencedata.tsv`
+    printf "     Search column is: $SEARCHCOL \n"
+    OUTPUTCOL=`awk -F"\t" 'NR==1{ for (i=1;i<=NF;i++) if ($i == "SeqID") print i }' allsequencedata.tsv`
+    printf "     Output column is: $OUTPUTCOL \n"
+    awk -F"\t" -v i="$SEARCHCOL" '$i ~ /True/ {print$8}' allsequencedata.tsv > qc_samples.csv
     
     #Look for duplicates in the list (second check)
     DUPES=`cat qc_samples.csv | sort | uniq -d`
