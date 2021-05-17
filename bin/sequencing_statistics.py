@@ -18,7 +18,7 @@ import datetime
 import getopt
 import pandas as pd
 import numpy as np
-from lib.gisaid import *
+from gisaid import *
 
 
 print("=" * 80)
@@ -322,13 +322,24 @@ print("Done")
 print("  Total samples retained: %d" % keepers_df.shape[0])
 
 #Drop uninformative columns
-samplemeta_df.drop(["Type","ExcludeSample"], axis = 1)
+samplemeta_df.drop(columns = ['Type','ExcludeSample'], inplace = True)
+#Change date fields from str to date
+samplemeta_df['SeqDate'] = pd.to_datetime(samplemeta_df['SeqDate'], format='%d/%m/%Y')
+samplemeta_df['SpecimenDate'] = pd.to_datetime(samplemeta_df['SpecimenDate'], format='%d/%m/%Y')
+#Sanity check on sample date and sequencing date
+samplemeta_df['DateCheck'] = samplemeta_df['SeqDate'] < samplemeta_df['SpecimenDate']
+if samplemeta_df['DateCheck'].unique().shape[0] > 1:
+    print("ERROR: %d records have a SeqDate before the SpecimenDate" % samplemeta_df[samplemeta_df.DateCheck==False].shape[0])
+else:
+    print("All records have a SeqDate after the SpecimenDate")
+    samplemeta_df.drop(columns = ['DateCheck'], inplace = True)
+print("")
 
 #WRITE RESULTS
 print("  Writing out all sequence data with metadata...")
 output_fn = "Samples_Sequenced_With_Metadata.tsv"
 samplemeta_df.to_csv(os.path.join(data_dir, output_fn), sep = '\t', index=False)
-print("  To: %s" % os.path.join(gisaid_dir, output_fn))
+print("  To: %s" % os.path.join(data_dir, output_fn))
 print("Done.")
 print("")
 
