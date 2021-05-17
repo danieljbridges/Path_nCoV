@@ -292,6 +292,46 @@ print("  To: %s" % os.path.join(gisaid_dir, output_fn))
 print("Done.")
 print("")
 
+#Merging in metadata
+print("-" * 80)
+print("Incorporating metadata...")
+
+metadata_fn="Metadata.csv"
+metadata_df = pd.read_csv(os.path.join(rampart_dir, metadata_fn))
+
+#Add in column highlighting any missing data
+check_cols = ["Province", "District", "SpecimenDate"] #List of key columns
+missing_data = [] #To house the new column of data
+for _, row in metadata_df.iterrows(): #Iterate over rows
+    m = [] #List to hold output from an individual column
+    for col in check_cols: #Iterate over columns we want to check
+        if row[col] != row[col]: #Only NaN is not equal to itself
+            m.append(col) #add data to list
+    missing_data.append(", ".join(m)) #Join as a new string
+metadata_df["MissingMetadata"] = missing_data
+
+print("  Metadata identified for : %d samples" % metadata_df.shape[0])
+print("  Sequencing data for : %d samples" % keepers_df.shape[0])
+print("  Merging metadata with sequence data...")
+samplemeta_df = pd.merge(left=metadata_df,
+                     right=keepers_df,
+                     left_on=["SampleID"],
+                     right_on=["SampleID"],
+                    how='inner')
+print("Done")
+print("  Total samples retained: %d" % keepers_df.shape[0])
+
+#Drop uninformative columns
+samplemeta_df.drop(["Type","ExcludeSample"], axis = 1)
+
+#WRITE RESULTS
+print("  Writing out all sequence data with metadata...")
+output_fn = "Samples_Sequenced_With_Metadata.tsv"
+samplemeta_df.to_csv(os.path.join(data_dir, output_fn), sep = '\t', index=False)
+print("  To: %s" % os.path.join(gisaid_dir, output_fn))
+print("Done.")
+print("")
+
 #Calculate per run summaries
 print("-" * 80)
 print("Summarising output per run...")
