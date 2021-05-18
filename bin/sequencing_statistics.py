@@ -343,6 +343,66 @@ print("  To: %s" % os.path.join(data_dir, output_fn))
 print("Done.")
 print("")
 
+print("-" * 80)
+print("Generating GISAID submission files")
+
+#Pull out the year
+samplemeta_df["Year"] = samplemeta_df['SpecimenDate'].dt.year.astype('Int64')
+#Generate a Province / District location
+l = []
+for _, row in samplemeta_df[['Province','District']].iterrows():
+    l.append(pd.Series(row).str.cat(sep='/'))
+samplemeta_df["Location"] = pd.DataFrame(l)
+#Fill in NA entries and replace keys with correct values
+samplemeta_df['Sex'].fillna(value="Unknown", inplace=True)
+samplemeta_df['Sex'].replace({"M":"Male","F":"Female"}, inplace = True)
+samplemeta_df['Age'].fillna(value="Unknown", inplace=True) 
+samplemeta_df['PatientStatus'].fillna(value="Unknown", inplace=True)
+
+#Create an empty dataframe with length of samplemeta_df
+gisaid_df = pd.DataFrame(index=np.arange(samplemeta_df.shape[0]), columns=np.arange(0))
+# pd.DataFrame(index=np.arange(1), columns=np.arange(8))
+gisaid_df["GISAID_Accession_Number"] = samplemeta_df['GISAID_Accession_Number']
+gisaid_df["SeqID"] = samplemeta_df['SeqID']
+gisaid_df["submitter"] = "djbridges"
+gisaid_df["fn"] = "filename"
+gisaid_df["covv_virus_name"] = "hCoV-19/Zambia/ZMB-"+ samplemeta_df['SampleID'].astype('str') + "/" + samplemeta_df['Year'].astype('str')
+gisaid_df["covv_type"] = "betacoronavirus"
+gisaid_df["covv_passage"] = "Original"
+gisaid_df["covv_collection_date"] = samplemeta_df['SpecimenDate']
+gisaid_df["covv_location"] = "Africa/Zambia/" + samplemeta_df['Location']
+gisaid_df["covv_add_location"] = ""
+gisaid_df["covv_host"] = "Human"
+gisaid_df["covv_add_host_info"] = ""
+gisaid_df["covv_gender"] = samplemeta_df['Sex']
+gisaid_df["covv_patient_age"] = samplemeta_df['Age']
+gisaid_df["covv_patient_status"] = samplemeta_df['PatientStatus']
+gisaid_df["covv_specimen"] = "Nasopharyngeal swab"
+gisaid_df["covv_outbreak"] = ""
+gisaid_df["covv_last_vaccinated"] = ""
+gisaid_df["covv_treatment"] = ""
+gisaid_df["covv_seq_technology"] = "Nanopore MinION"
+gisaid_df["covv_assembly_method"] = "ARTIC Field Workflow"
+gisaid_df["covv_coverage"] = samplemeta_df['sequencing_depth_avg'].astype('int')
+gisaid_df["covv_orig_lab"] = "University of Zambia, School of Veterinary Medicine"
+gisaid_df["covv_orig_lab_addr"] = "University of Zambia, School of Veterinary Medicine, Gt East Road Campus, Lusaka, Zambia"
+gisaid_df["covv_provider_sample_id"] = ""
+gisaid_df["covv_subm_lab"] = "UNZAVET and PATH"
+gisaid_df["covv_subm_lab_addr"] = "University of Zambia, School of Veterinary Medicine, Gt East Road Campus, Lusaka, Zambia"
+gisaid_df["covv_subm_sample_id"] = samplemeta_df["SampleID"]
+gisaid_df["covv_authors"] = "Mulenga Mwenda-Chimfwembe, Ngonda Saasa, Daniel Bridges"
+gisaid_df["covv_comment"] = ""
+gisaid_df["comment_type"] =""
+print("Done")
+
+#WRITE RESULTS
+print("  Writing out unfiltered gisaid submission file (includes sequences already submitted)...")
+output_fn = "GISAID_Submission_Data_Unfiltered.csv"
+gisaid_df.to_csv(os.path.join(data_dir, output_fn), sep = ',', index=False)
+print("  To: %s" % os.path.join(data_dir, output_fn))
+print("Done.")
+print("")
+
 #Calculate per run summaries
 print("-" * 80)
 print("Summarising output per run...")

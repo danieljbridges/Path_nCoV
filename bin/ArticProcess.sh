@@ -421,7 +421,7 @@ if [ $S5 = 1 ] ; then
     nextclade -i $ALLSEQ -c nextclade.csv -o nextclade.json cd2>&1 | tee "${LOGFOLDER}nextclade.log"
     mv nextclade* intermediates/
         
-    printf "\n###### ${GREEN} Determining sequencing statistics of samples run ${NC} ######\n\n"
+    printf "\n###### ${GREEN} Determining sequencing statistics, merging with PANGO, Nextclade and metadata ${NC} ######\n\n"
     sequencing_statistics.py -d $BASEFOLDER 2>&1 | tee "${LOGFOLDER}gisaid.log"
     
     printf "\n###### ${GREEN} Filtering to remove sequences that should not be submitted from the fasta file ${NC} ######\n\n"
