@@ -361,7 +361,7 @@ print("")
 
 #WRITE RESULTS
 print("  Writing out all sequence data with metadata...")
-output_fn = "Samples_Sequenced_With_Metadata.tsv"
+output_fn = "Samples_Sequenced_With_Metadata.csv"
 samplemeta_df.to_csv(os.path.join(data_dir, output_fn), sep = '\t', index=False)
 print("  To: %s" % os.path.join(data_dir, output_fn))
 print("Done.")
