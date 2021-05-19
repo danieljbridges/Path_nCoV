@@ -297,3 +297,25 @@ def calc_avg_seq_depth(fastq_fn, genome_length):
     total_bp = int(subprocess.check_output(cmd, shell=True))
     return total_bp / genome_length
 
+def calc_fastq_total_reads(fastq_fn):
+    """
+    Calculate number of reads in a given fastq file 
+    named `fastq_fn` 
+    
+    Parameters
+        fastq_fn : str
+            Path to fastq file.
+            
+    Returns
+        _ : int
+            Number of reads associated with that barcode
+            from the fastq.
+    
+    """
+        
+    c = 0
+    with open(fastq_fn, "r") as f: # Open fastq_fn
+        for line in f:
+            c += 0.25 #There are four lines per read
+    return int(c)
+

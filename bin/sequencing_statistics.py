@@ -83,7 +83,8 @@ print("Done.")
 print("")
 
 # Prepare storage
-dts = []
+dts = [] #data per sample
+dtr = [] #data per run
 
 # LOAD SAMPLE METADATA
 print("Loading sample list details from Samples_Sequenced.csv...")
@@ -115,8 +116,26 @@ for r in rs:
     run_dir = os.path.join(artic_dir, r)
     if os.path.isdir(run_dir) and r.startswith("C"):
         d = os.path.join(run_dir, "processed")
-
-        # Iterate over samples
+        
+        #Dictionary for a count of the number of reads that are unclassified
+        stats_run = {}
+        stats_run["SeqRun"] = r
+        
+        #Need to count the number of unclassified reads just once per run
+        unclass_dir = os.path.join(d.replace("processed", "fastq/unclassified"))
+        t = 0 #count number of reads
+        try:
+            for h, u in enumerate(os.listdir(unclass_dir)): #for each fastq
+                current = calc_fastq_total_reads(os.path.join(unclass_dir, u))
+                t = t+current
+            stats_run.update({"total_reads": t})
+        except:
+            stats_run.update({"total_reads": 0})
+        
+        # Store unclass results
+        dtr.append(stats_run)
+        
+        #Iterate over samples
         n_total = len(os.listdir(d))
         for i, s in enumerate(os.listdir(d)):
             
@@ -146,13 +165,18 @@ for r in rs:
             ns_per_100kbp = calc_ns_per_100kbp(consensus_path, verbose=False)
             stats_dt.update({"ns_per_100kbp": ns_per_100kbp})
             
-            # Calc. sequencing depth from .fastq
+            # Identify fastq files for analysis
             b_fn = os.path.join(d.replace("processed", "fastq"), "C%02d_barcode%02d.fastq" % (int(r[1:]), b))
             try:
+                # Calc. sequencing depth from .fastq
                 sequencing_depth_avg_fastq = calc_avg_seq_depth(b_fn, genome_length=stats_dt["ref_genome_length"])
                 stats_dt.update({"sequencing_depth_avg_fastq": sequencing_depth_avg_fastq})
+                # Calc. number of reads per barcode
+                total_reads = calc_fastq_total_reads(b_fn)
+                stats_dt.update({"total_reads": total_reads})
             except:
                 stats_dt.update({"sequencing_depth_avg_fastq": 0})
+                stats_dt.update({"total_reads": 0})
             
             # Store
             dts.append(stats_dt)
@@ -161,24 +185,24 @@ for r in rs:
         sys.stdout.write("\n")
         
 # Create data frame
-gisaid_df = pd.DataFrame(dts)
+stats_df = pd.DataFrame(dts)
 print("Done.")
 
 #Check that all the sequence IDs are unique
-if len(gisaid_df["SeqID"]) == len(set(gisaid_df["SeqID"])):
+if len(stats_df["SeqID"]) == len(set(stats_df["SeqID"])):
     print("    All sequence IDs are unique")
 else:
     print("    Duplicate sequence IDs identified")
     l_func = lambda x, y: list((set(x)- set(y))) + list((set(y)- set(x))) 
-    non_match = l_func(gisaid_df["SeqID"], gisaid_df["SeqID"].unique()) 
+    non_match = l_func(stats_df["SeqID"], stats_df["SeqID"].unique()) 
     print("    Non-match elements: ", non_match)
     print("Exiting script")
     exit()
 print("")
-print("Statistics for a total of %s samples have been calculated" % gisaid_df.shape[0])
-gisaid_fn = "intermediates/gisaid.csv"
-gisaid_df.to_csv(os.path.join(gisaid_dir, gisaid_fn), index=False)
-print("    Data output to %s" % gisaid_fn)
+print("Statistics for a total of %s samples have been calculated" % stats_df.shape[0])
+stats_fn = "intermediates/stats.csv"
+stats_df.to_csv(os.path.join(gisaid_dir, stats_fn), index=False)
+print("    Data output to %s" % stats_fn)
 print("Done.")
 print("")
 
@@ -201,19 +225,19 @@ else:
     
 #Check that all sequences are represented. If not this suggests that some of the fasta concatenation has failed or that the wrong sequence name has been used
 l_func = lambda x, y: list((set(x)- set(y))) + list((set(y)- set(x))) 
-non_match_gp = l_func(gisaid_df["SeqID"], pango_df["taxon"]) 
-non_match_gn = l_func(gisaid_df["SeqID"], nextclade_df["seqName"]) 
+non_match_gp = l_func(stats_df["SeqID"], pango_df["taxon"]) 
+non_match_gn = l_func(stats_df["SeqID"], nextclade_df["seqName"]) 
 if len(non_match_gp) > 0 :
     print("  A total of %s sequence ids do not match between gisaid and PANGO" % len(non_match_gp))
-    exit()
+    #exit()
 elif len(non_match_gn) > 0 :
     print("  A total of %s sequence ids do not match between gisaid and nextclade" % len(non_match_gn))
-    exit()
+    #exit()
 else:
     print("  All sequences match across the three files")
 
-print("  Merging gisaid (n=%d), pango (n=%d) and nextclade (n=%d) data together" % (gisaid_df.shape[0], pango_df.shape[0], nextclade_df.shape[0]))
-Merge1 = pd.merge(gisaid_df, pango_df, how='inner', left_on='SeqID', right_on='taxon')
+print("  Merging gisaid (n=%d), pango (n=%d) and nextclade (n=%d) data together" % (stats_df.shape[0], pango_df.shape[0], nextclade_df.shape[0]))
+Merge1 = pd.merge(stats_df, pango_df, how='inner', left_on='SeqID', right_on='taxon')
 Merge2 = pd.merge(Merge1, nextclade_df, how='inner', left_on='SeqID', right_on='seqName')
 print("  Total remaining records = %d" % (Merge2.shape[0]))
 print("  Removing unwanted column headings from final summary file of samples sequenced")
@@ -229,7 +253,7 @@ print("")
 print("Merging sequenced samples with sample list...")
 print("  No. samples...")
 print("    ...in sample list: %d" % seqsamples_df.shape[0])
-print("    ...with consensus sequence: %d" % gisaid_df.shape[0])
+print("    ...with consensus sequence: %d" % stats_df.shape[0])
 merged_df = pd.merge(left=seqsamples_df,
                      right=sequenced_df,
                      left_on=["SeqRun", "SeqBarcode", "SeqID"],
@@ -286,7 +310,7 @@ alldata_df = alldata_df.drop('ExcludeSample', axis=1)
 
 #WRITE RESULTS
 print("Writing all sequencing data...")
-output_fn = "allsequencedata.tsv"
+output_fn = "allsequencedata.csv"
 alldata_df.to_csv(os.path.join(gisaid_dir, output_fn), sep = '\t', index=False)
 print("  To: %s" % os.path.join(gisaid_dir, output_fn))
 print("Done.")
@@ -398,7 +422,7 @@ print("Done")
 #WRITE RESULTS
 print("  Writing out unfiltered gisaid submission file (includes sequences already submitted)...")
 output_fn = "GISAID_Submission_Data_Unfiltered.csv"
-gisaid_df.to_csv(os.path.join(data_dir, output_fn), sep = ',', index=False)
+gisaid_df.to_csv(os.path.join(data_dir, output_fn), sep = '\t', index=False)
 print("  To: %s" % os.path.join(data_dir, output_fn))
 print("Done.")
 print("")
@@ -444,12 +468,32 @@ runsummary_df = pd.merge(left=sum1_df,
                      how="outer")
 runsummary_df['qc_success'] = runsummary_df['qc_consensus']/runsummary_df['samples']
 
+#Create dataframes for barcoded and unclassified reads per run
+bc = stats_df[['SeqRun','total_reads']].groupby('SeqRun').sum()
+bc.rename(columns = {'total_reads':'barcoded_reads'}, inplace = True)
+un = pd.DataFrame(dtr).groupby('SeqRun').sum()
+un.rename(columns = {'total_reads':'unclassified_reads'}, inplace = True)
+#Merge into runsummary_df
+runsummary_df = pd.merge(left=runsummary_df,
+                     right=bc,
+                     left_on=["SeqRun"],
+                     right_on=["SeqRun"],
+                     how="outer")
+runsummary_df = pd.merge(left=runsummary_df,
+                     right=un,
+                     left_on=["SeqRun"],
+                     right_on=["SeqRun"],
+                     how="outer")
+#Calculate barcoding efficiency
+runsummary_df["barcoding_efficiency"] = runsummary_df['barcoded_reads'] / (runsummary_df['unclassified_reads'] + runsummary_df['barcoded_reads'])
+
 print("  Done")
 
 # WRITE RESULTS
 print("  Writing results...")
 runsummary_fn = "runsummary.csv"
 runsummary_df.to_csv(os.path.join(gisaid_dir, runsummary_fn), index=True)
+#df.to_csv('Students.csv', sep ='\t')
 print("  To: %s" % os.path.join(gisaid_dir, runsummary_fn))
 print("Done.")
 print("")

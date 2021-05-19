@@ -423,27 +423,6 @@ if [ $S5 = 1 ] ; then
         
     printf "\n###### ${GREEN} Determining sequencing statistics, merging with PANGO, Nextclade and metadata ${NC} ######\n\n"
     sequencing_statistics.py -d $BASEFOLDER 2>&1 | tee "${LOGFOLDER}gisaid.log"
-    
-    printf "\n###### ${GREEN} Filtering to remove sequences that should not be submitted from the fasta file ${NC} ######\n\n"
-    
-    #Pull out all of the submittable SeqID entries that should be retained by searching column headers
-    SEARCHCOL=`awk -F"\t" 'NR==1{ for (i=1;i<=NF;i++) if ($i == "Submittable") print i }' allsequencedata.tsv`
-    printf "     Search column is: $SEARCHCOL \n"
-    OUTPUTCOL=`awk -F"\t" 'NR==1{ for (i=1;i<=NF;i++) if ($i == "SeqID") print i }' allsequencedata.tsv`
-    printf "     Output column is: $OUTPUTCOL \n"
-    awk -F"\t" -v i="$SEARCHCOL" '$i ~ /True/ {print$8}' allsequencedata.tsv > qc_samples.csv
-    
-    #Look for duplicates in the list (second check)
-    DUPES=`cat qc_samples.csv | sort | uniq -d`
-    if [ -n "$DUPES" ] ; then
-        printf "${RED} ERROR: Duplicate entries found in the list of SeqIDs to retain. \n Exiting script\n ${NC}\n"
-        printf "$DUPES\n"
-        exit
-    fi
-    
-    #Filter the list of all sequences to only retain the correct ones
-    seqkit grep -n -f qc_samples.csv $ALLSEQ -o qc_seq.fasta
-    rm qc_samples.csv
         
     printf "\n###### ${GREEN}Step 5: Sequencing statistics compiled. ${NC} ######\n\n"
 else
@@ -497,5 +476,30 @@ if [ $S6 = 1 ] ; then
 else
     printf "###### ${GREEN}Step 6: Skipping Generating JSON files for Rampart${NC} ######\n\n"
 fi
-
 exit
+
+#Think the next step is better as a separate process - python script?
+if [ $S7 = 1 ] ; then
+    printf "\n###### ${BLUE}Step 6: Generating JSON files for Rampart. ${NC} ######\n\n"
+    printf "\n###### ${GREEN} Filtering to remove sequences that should not be submitted from the fasta file ${NC} ######\n\n"
+    
+    #Pull out all of the submittable SeqID entries that should be retained by searching column headers
+    SEARCHCOL=`awk -F"\t" 'NR==1{ for (i=1;i<=NF;i++) if ($i == "Submittable") print i }' allsequencedata.tsv`
+    printf "     Search column is: $SEARCHCOL \n"
+    OUTPUTCOL=`awk -F"\t" 'NR==1{ for (i=1;i<=NF;i++) if ($i == "SeqID") print i }' allsequencedata.tsv`
+    printf "     Output column is: $OUTPUTCOL \n"
+    awk -F"\t" -v i="$SEARCHCOL" '$i ~ /True/ {print$8}' allsequencedata.tsv > qc_samples.csv
+    
+    #Look for duplicates in the list (second check)
+    DUPES=`cat qc_samples.csv | sort | uniq -d`
+    if [ -n "$DUPES" ] ; then
+        printf "${RED} ERROR: Duplicate entries found in the list of SeqIDs to retain. \n Exiting script\n ${NC}\n"
+        printf "$DUPES\n"
+        exit
+    fi
+    
+    #Filter the list of all sequences to only retain the correct ones
+    seqkit grep -n -f qc_samples.csv $ALLSEQ -o qc_seq.fasta
+    rm qc_samples.csv
+fi
+
