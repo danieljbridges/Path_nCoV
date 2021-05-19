@@ -197,8 +197,7 @@ check_mkdir "$ARTIC_OUT/fastq"
 check_mkdir "$ARTIC_OUT/processed"
 present $RAWDATADIR "d"
 
-ALLSEQ="allseq.fasta" #Name of file for all sequences to output to
-
+ALLSEQ="allsequences.fasta" #Name of file for all sequences to output to
 
 ###############
 #Guppy Barcoder (step 1)
@@ -406,11 +405,10 @@ fi
 if [ $S5 = 1 ] ; then
     printf "\n###### ${BLUE}Step 5: Generating statistics and lineages on sequences. ${NC} ######\n"
     
-    printf "\n###### ${GREEN} Copying all consensus sequences (allseq.fasta) ${NC} ######\n\n"
+    printf "\n###### ${GREEN} Copying all consensus sequences (${ALLSEQ}) ${NC} ######\n\n"
     cd "$BASEFOLDER/5_GISAID"
     cp ../4_Consensus/$ALLSEQ ./
     printf "Done"
-    exit
 
     printf "\n###### ${GREEN} Determining PANGO lineages ${NC} ######\n\n"
     CONDA=`which conda | sed s'/\/condabin//' | sed s'/bin\///' | sed s'/\/conda//'`
@@ -485,18 +483,18 @@ else
 fi
 
 if [ $S7 = 1 ] ; then
-    printf "\n###### ${BLUE}Step 7: Generate filtered fasta file for GISAID submission. ${NC} ######\n\n"
+    printf "\n###### ${BLUE}Step 7: Generate filtered fasta file of submittable entries. ${NC} ######\n\n"
     
     cd "$BASEFOLDER/5_GISAID"
     
-    printf "\n###### ${GREEN} Filtering to remove sequences that should not be submitted ${NC} ######\n\n"
+    printf "\n###### ${GREEN} Filtering to remove sequences that are not submittable ${NC} ######\n\n"
     
     #Pull out all of the submittable SeqID entries that should be retained by searching column headers
-    SEARCHCOL=`awk -F"\t" 'NR==1{ for (i=1;i<=NF;i++) if ($i == "Submittable") print i }' allsequencedata.csv`
-    printf "     Search column is: $SEARCHCOL \n"
-    OUTPUTCOL=`awk -F"\t" 'NR==1{ for (i=1;i<=NF;i++) if ($i == "SeqID") print i }' allsequencedata.csv`
-    printf "     Output column is: $OUTPUTCOL \n"
-    awk -F"\t" -v i="$SEARCHCOL" '$i ~ /True/ {print$8}' allsequencedata.csv > samples.csv
+    SUBCOL=`awk -F"\t" 'NR==1{ for (i=1;i<=NF;i++) if ($i == "Submittable") print i }' allsequencedata.csv`
+    printf "     Submittable column is: $SUBCOL \n"
+    SEQIDCOL=`awk -F"\t" 'NR==1{ for (i=1;i<=NF;i++) if ($i == "SeqID") print i }' allsequencedata.csv`
+    printf "     SeqID column is: $SEQIDCOL \n"
+    awk -F"\t" -v i=$SUBCOL -v j=$SEQIDCOL '$i ~ /True/ {print$j}' allsequencedata.csv > samples.csv
     
     #Look for duplicates in the list (second check)
     DUPES=`cat samples.csv | sort | uniq -d`
@@ -507,7 +505,32 @@ if [ $S7 = 1 ] ; then
     fi
     
     #Filter the list of all sequences to only retain the correct ones
-    seqkit grep -n -f samples.csv $ALLSEQ -o allseq.filtered.fasta
+    seqkit grep -n -f samples.csv $ALLSEQ -o allsequences.submittable.fasta
+    rm samples.csv
+    
+    MINCOV=90
+    MINBREADTH=90
+    
+    printf "\n###### ${GREEN} Filtering to remove sequences with that are >${MINCOV} percent coverage and >${MINBREADTH}x average depth ${NC} ######\n\n"
+    
+    #Pull out all of the submittable SeqID entries that should be retained by searching column headers
+    COVCOL=`awk -F"\t" 'NR==1{ for (i=1;i<=NF;i++) if ($i == "sequencing_depth_avg") print i }' allsequencedata.csv`
+    printf "     Coverage column is: $COVCOL \n"
+    BREADTHCOL=`awk -F"\t" 'NR==1{ for (i=1;i<=NF;i++) if ($i == "coverage_breadth") print i }' allsequencedata.csv`
+    printf "     Breadth column is: $BREADTHCOL \n"
+    
+    awk -F"\t" -v i=$COVCOL -v j=$BREADTHCOL -v k=$SUBCOL -v l=$SEQIDCOL '$i > 90 && $j > 90 && $k ~ /True/ {print$l}' allsequencedata.csv > samples.csv
+
+    #Look for duplicates in the list (second check)
+    DUPES=`cat samples.csv | sort | uniq -d`
+    if [ -n "$DUPES" ] ; then
+        printf "${RED} ERROR: Duplicate entries found in the list of SeqIDs to retain. \n Exiting script\n ${NC}\n"
+        printf "$DUPES\n"
+        exit
+    fi
+    
+    #Filter the list of all sequences to only retain the correct ones
+    seqkit grep -n -f samples.csv $ALLSEQ -o allsequences.submittable.qc.fasta
     rm samples.csv
 fi
 exit
