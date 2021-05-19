@@ -9,8 +9,8 @@ set -e #exit whenever a command exits with a non zero status
 set -u #treat undefined variables as errors
 set -o pipefail #pipe will be considered successful if all the commands are executed without errors
 
-VERSION="0.4.0"
-VERDATE="2021-04-19"
+VERSION="0.5"
+VERDATE="2021-05-19"
 #ANSI escape codes: 
 #Black        0;30     Dark Gray     1;30
 #Red          0;31     Light Red     1;31
@@ -61,6 +61,7 @@ function Help {
     -4      Omit Step 4 (Consensus sequences)
     -5      Omit Step 5 (Sequencing statistics)
     -6      Omit Step 6 (Generate JSON file for RAMPART)
+    -7      Omit Step 7 (All sequences and filtered list of sequences)
    "
 }
 
@@ -101,7 +102,7 @@ function check_package {
 }
 
 #==============Recognise any CLI options==================
-while getopts 'vhp:b:r:s:m123456' opt; do
+while getopts 'vhp:b:r:s:m1234567' opt; do
   case "$opt" in
     v)
       printf "${ORANGE}ArticProcess.sh Version $VERSION, $VERDATE ${NC}\n"
@@ -141,6 +142,9 @@ while getopts 'vhp:b:r:s:m123456' opt; do
     6)
       S6=0
       ;;
+    7)
+      S7=0
+      ;;
     r)
       RUNNAME=$OPTARG
       ;;
@@ -178,6 +182,7 @@ S3=${S3:- 1}
 S4=${S4:- 1}
 S5=${S5:- 1}
 S6=${S6:- 1}
+S7=${S7:- 1}
 MEDAKA=${MEDAKA:- 0}            # 3
 PRIMERDIR=${PRIMERDIR:- 1}      # 3
 PRIMERS=${PRIMERS:- 1}          # 2, 3
@@ -188,11 +193,11 @@ RAWDATADIR="$BASEFOLDER/1_Raw/$RUNNAME"
 #Determine if the necessary files and directories and arguments etc exist or create them if not
 
 #Make directories for the demultiplexed, combined and size selected fast_q files
-
 check_mkdir "$ARTIC_OUT/fastq"
 check_mkdir "$ARTIC_OUT/processed"
-
 present $RAWDATADIR "d"
+
+ALLSEQ="allseq.fasta" #Name of file for all sequences to output to
 
 
 ###############
@@ -389,7 +394,7 @@ if [ $S4 = 1 ] ; then
     #Cat all runs sequences together
     find ./ -type f -name "*consensus.fasta" | xargs -I '{}'  cat {} > "sequences.fasta"
     #Remove the additional info in the header to just leave the Sample ID
-    cat sequences.fasta | sed  s'/\/ARTIC\/nanopolish MN908947.3//' > allseq.fasta
+    cat sequences.fasta | sed  s'/\/ARTIC\/nanopolish MN908947.3//' > $ALLSEQ
     rm sequences.fasta
     
     echo -e "\n###### ${GREEN}Step 4: Consensus sequences compiled. ${NC} ######\n\n"
@@ -401,9 +406,11 @@ fi
 if [ $S5 = 1 ] ; then
     printf "\n###### ${BLUE}Step 5: Generating statistics and lineages on sequences. ${NC} ######\n"
     
+    printf "\n###### ${GREEN} Copying all consensus sequences (allseq.fasta) ${NC} ######\n\n"
     cd "$BASEFOLDER/5_GISAID"
-    #Define file to run on
-    ALLSEQ="$BASEFOLDER/4_Consensus/allseq.fasta"
+    cp ../4_Consensus/$ALLSEQ ./
+    printf "Done"
+    exit
 
     printf "\n###### ${GREEN} Determining PANGO lineages ${NC} ######\n\n"
     CONDA=`which conda | sed s'/\/condabin//' | sed s'/bin\///' | sed s'/\/conda//'`
@@ -476,22 +483,23 @@ if [ $S6 = 1 ] ; then
 else
     printf "###### ${GREEN}Step 6: Skipping Generating JSON files for Rampart${NC} ######\n\n"
 fi
-exit
 
-#Think the next step is better as a separate process - python script?
 if [ $S7 = 1 ] ; then
-    printf "\n###### ${BLUE}Step 6: Generating JSON files for Rampart. ${NC} ######\n\n"
-    printf "\n###### ${GREEN} Filtering to remove sequences that should not be submitted from the fasta file ${NC} ######\n\n"
+    printf "\n###### ${BLUE}Step 7: Generate filtered fasta file for GISAID submission. ${NC} ######\n\n"
+    
+    cd "$BASEFOLDER/5_GISAID"
+    
+    printf "\n###### ${GREEN} Filtering to remove sequences that should not be submitted ${NC} ######\n\n"
     
     #Pull out all of the submittable SeqID entries that should be retained by searching column headers
-    SEARCHCOL=`awk -F"\t" 'NR==1{ for (i=1;i<=NF;i++) if ($i == "Submittable") print i }' allsequencedata.tsv`
+    SEARCHCOL=`awk -F"\t" 'NR==1{ for (i=1;i<=NF;i++) if ($i == "Submittable") print i }' allsequencedata.csv`
     printf "     Search column is: $SEARCHCOL \n"
-    OUTPUTCOL=`awk -F"\t" 'NR==1{ for (i=1;i<=NF;i++) if ($i == "SeqID") print i }' allsequencedata.tsv`
+    OUTPUTCOL=`awk -F"\t" 'NR==1{ for (i=1;i<=NF;i++) if ($i == "SeqID") print i }' allsequencedata.csv`
     printf "     Output column is: $OUTPUTCOL \n"
-    awk -F"\t" -v i="$SEARCHCOL" '$i ~ /True/ {print$8}' allsequencedata.tsv > qc_samples.csv
+    awk -F"\t" -v i="$SEARCHCOL" '$i ~ /True/ {print$8}' allsequencedata.csv > samples.csv
     
     #Look for duplicates in the list (second check)
-    DUPES=`cat qc_samples.csv | sort | uniq -d`
+    DUPES=`cat samples.csv | sort | uniq -d`
     if [ -n "$DUPES" ] ; then
         printf "${RED} ERROR: Duplicate entries found in the list of SeqIDs to retain. \n Exiting script\n ${NC}\n"
         printf "$DUPES\n"
@@ -499,7 +507,7 @@ if [ $S7 = 1 ] ; then
     fi
     
     #Filter the list of all sequences to only retain the correct ones
-    seqkit grep -n -f qc_samples.csv $ALLSEQ -o qc_seq.fasta
-    rm qc_samples.csv
+    seqkit grep -n -f samples.csv $ALLSEQ -o allseq.filtered.fasta
+    rm samples.csv
 fi
-
+exit
