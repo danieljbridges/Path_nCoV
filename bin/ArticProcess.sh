@@ -9,8 +9,8 @@ set -e #exit whenever a command exits with a non zero status
 set -u #treat undefined variables as errors
 set -o pipefail #pipe will be considered successful if all the commands are executed without errors
 
-VERSION="0.5"
-VERDATE="2021-05-19"
+VERSION="0.6"
+VERDATE="2021-05-31"
 #ANSI escape codes: 
 #Black        0;30     Dark Gray     1;30
 #Red          0;31     Light Red     1;31
@@ -62,6 +62,7 @@ function Help {
     -5      Omit Step 5 (Sequencing statistics)
     -6      Omit Step 6 (Generate JSON file for RAMPART)
     -7      Omit Step 7 (All sequences and filtered list of sequences)
+    -8      Omit Step 8 (ncov-tools QC pipeline)
    "
 }
 
@@ -96,13 +97,17 @@ function check_var {
 
 function check_package {
     if [ $(which $1 | wc -l) = 0 ] ; then
-        printf "${RED}ERROR:${NC} $1 not present. $2 \n Exiting script\n\n"
+        printf "${RED}ERROR:${NC} $2 not present. $3 \n Exiting script\n\n"
         exit
     fi
 }
 
+function GETCOLMID {
+awk -F"$1" 'NR==1{ for (i=1;i<=NF;i++) if ($i == "'$2'") print i }' $3
+}
+
 #==============Recognise any CLI options==================
-while getopts 'vhp:b:r:s:m1234567' opt; do
+while getopts 'vhp:b:r:s:m12345678' opt; do
   case "$opt" in
     v)
       printf "${ORANGE}ArticProcess.sh Version $VERSION, $VERDATE ${NC}\n"
@@ -145,6 +150,9 @@ while getopts 'vhp:b:r:s:m1234567' opt; do
     7)
       S7=0
       ;;
+    8)
+      S8=0
+      ;;
     r)
       RUNNAME=$OPTARG
       ;;
@@ -164,7 +172,7 @@ shift $((OPTIND -1))
 #==============CHECK ALL VARIABLES AND REQUIREMENTS ARE MET==================
 #Create a space between cmd
 printf "\n${ORANGE}##### Running `basename $0` Version $VERSION ##### ${NC}\n"
-
+printf "${GREEN}Checking all files, folders and data are present${NC}\n"
 #################################################
 #Enter default values if parameter not defined or build from exisiting args
 # These are MANDATORY
@@ -183,6 +191,7 @@ S4=${S4:- 1}
 S5=${S5:- 1}
 S6=${S6:- 1}
 S7=${S7:- 1}
+S8=${S8:- 1}
 MEDAKA=${MEDAKA:- 0}            # 3
 PRIMERDIR=${PRIMERDIR:- 1}      # 3
 PRIMERS=${PRIMERS:- 1}          # 2, 3
@@ -190,8 +199,6 @@ ARTIC_OUT="$BASEFOLDER/3_Artic_Output/$RUNNAME"
 RAWDATADIR="$BASEFOLDER/1_Raw/$RUNNAME"
 
 #################################################
-#Determine if the necessary files and directories and arguments etc exist or create them if not
-
 #Make directories for the demultiplexed, combined and size selected fast_q files
 check_mkdir "$ARTIC_OUT/fastq"
 check_mkdir "$ARTIC_OUT/processed"
@@ -199,19 +206,19 @@ present $RAWDATADIR "d"
 
 ALLSEQ="allsequences.fasta" #Name of file for all sequences to output to
 
-###############
-#Guppy Barcoder (step 1)
+#Determine if the necessary files and directories and arguments etc exist for each step
+printf ""
 if [ $S1 = 1 ] ; then
-    check_package "guppy_barcoder" "Please install from ONT website\n"
+    check_package "guppy_barcoder" "guppy" "Please install from ONT website\n"
     FASTQRAW="$RAWDATADIR/fastq_pass"
     present $FASTQRAW "d"
 fi
 
-###############
-#Guppy Plex (step 2) and step 3 identical
 if [ $S2 = 1 ] || [ $S3 = 1 ]; then
-    #Check artic active 
-    check_package "artic" "Please activate the appropriate environment e.g.:\n\n conda activate artic\n"
+    check_package "artic" "artic" "Please activate the appropriate environment e.g.:\n\n conda activate artic\n"
+fi
+
+if [ $S2 = 1 ] || [ $S3 = 1 ] || [ $S8 = 1 ]; then
     #Check primers and determine max and min sizes and primer scheme for analysis
     check_var $PRIMERS "-p (primers)"
     if [ $PRIMERS = "Sanger" ] ; then
@@ -233,24 +240,26 @@ if [ $S2 = 1 ] || [ $S3 = 1 ]; then
     fi
 fi
 
-###############
-#Artic processing (step 3)
-if [ $S3 = 1 ] ; then
-    SEQUENCINGSUMMARY=$(find $RAWDATADIR -name 'sequencing_summary*' -not -name '*.tmp')
-    check_var ${SEQUENCINGSUMMARY:- 1} "Sequencing Summary"
-    
+if [ $S3 = 1 ] || [ $S8 = 1 ]; then
     #Check primer scheme supplied
     check_var $PRIMERDIR "-s (primer scheme location)"
     PRIMERDIR=`realpath $PRIMERDIR`
 fi
 
-###############
-#Artic processing and JSON  (step 3 and 6)
-if [ $S3 = 1 ] || [ $S6 = 1 ] ; then
+
+if [ $S3 = 1 ] ; then
+    SEQUENCINGSUMMARY=$(find $RAWDATADIR -name 'sequencing_summary*' -not -name '*.tmp')
+    check_var ${SEQUENCINGSUMMARY:- 1} "Sequencing Summary"
+fi
+
+if [ $S3 = 1 ] || [ $S6 = 1 ] || [ $S8 = 1 ] ; then
     #Identify csv file
     SAMPLEFILE="$BASEFOLDER/2_SampleList_and_Rampart/Samples_Sequenced.csv"
     present $SAMPLEFILE "f"
-    
+fi
+
+
+if [ $S3 = 1 ] || [ $S6 = 1 ] ; then
     #Check if all of the seqIDs are unique in the samples file
     readarray -t IDS < <(awk -F"," 'NR>1 {if ($8) print$8}' $SAMPLEFILE | sort | uniq -d)
     if [ ${#IDS[@]} -gt 0 ]; then
@@ -280,7 +289,9 @@ if [ $S3 = 1 ] || [ $S6 = 1 ] ; then
         printf '%s\n' "${BARCODES[@]}" | awk '!($0 in seen){seen[$0];next} 1'
         exit
     fi
+    printf "${GREEN}CHECKED:${NC}No errors in sample list.\n"
 fi
+
 #Define logfile output
 LOGFOLDER="$BASEFOLDER/Logs/"
 RUNLOG="$LOGFOLDER/$RUNNAME/"
@@ -288,8 +299,7 @@ check_mkdir $RUNLOG
 RUNLOG=$(echo "$RUNLOG${RUNNAME}_Step_")
 
 #All checks complete
-printf "${GREEN}CHECKED:${NC}All required programs, files and locations are present.
-${GREEN}CHECKED:${NC}No errors in sample list.\n"
+printf "${GREEN}CHECKED:${NC}All required programs, files and locations are present.\n\n"
 
 #==============THE SCRIPT==================Se   
 #STEP 1: Run the guppy barcoder to demultiplex into separate barcodes
@@ -415,13 +425,13 @@ if [ $S5 = 1 ] ; then
     source $CONDA/etc/profile.d/conda.sh 
     set +eu
     conda activate pangolin
-    check_package "pangolin environment" "Please activate the appropriate environment e.g.:\n\n conda activate pangolin\n"
+    check_package "pangolin" "pangolin environment" "Please activate the appropriate environment e.g.:\n\n conda activate pangolin\n"
     #run pangolin
     pangolin $ALLSEQ 2>&1 | tee "${LOGFOLDER}pango.log"
     mv lineage_report.csv intermediates/
     
     printf "\n###### ${GREEN} Determining nextclade lineages ${NC} ######\n\n"
-    check_package "nextclade package" "Please ensure that nextclade is installed (see https://www.npmjs.com/package/@neherlab/nextclade)\n"
+    check_package "nextclade" "nextclade package" "Please ensure that nextclade is installed (see https://www.npmjs.com/package/@neherlab/nextclade)\n"
     #run nextclade
     nextclade -i $ALLSEQ -c nextclade.csv -o nextclade.json cd2>&1 | tee "${LOGFOLDER}nextclade.log"
     mv nextclade* intermediates/
@@ -486,14 +496,16 @@ if [ $S7 = 1 ] ; then
     printf "\n###### ${BLUE}Step 7: Generate filtered fasta file of submittable entries. ${NC} ######\n\n"
     
     cd "$BASEFOLDER/5_GISAID"
+    ALLSEQDATAFN="allsequencedata.csv"
+    present $ALLSEQDATAFN "f"
     
     printf "\n###### ${GREEN} Filtering to remove sequences that are not submittable ${NC} ######\n\n"
     
-    #Pull out all of the submittable SeqID entries that should be retained by searching column headers
-    SUBCOL=`awk -F"\t" 'NR==1{ for (i=1;i<=NF;i++) if ($i == "Submittable") print i }' allsequencedata.csv`
-    printf "     Submittable column is: $SUBCOL \n"
-    SEQIDCOL=`awk -F"\t" 'NR==1{ for (i=1;i<=NF;i++) if ($i == "SeqID") print i }' allsequencedata.csv`
-    printf "     SeqID column is: $SEQIDCOL \n"
+    #Pull out the ID for specific column headers
+    SUBCOL="$(GETCOLMID "\t" "Submittable" "$ALLSEQDATAFN")"
+    SEQIDCOL="$(GETCOLMID "\t" "SeqID" "$ALLSEQDATAFN")"
+        
+    #Generate list of sequences
     awk -F"\t" -v i=$SUBCOL -v j=$SEQIDCOL '$i ~ /True/ {print$j}' allsequencedata.csv > samples.csv
     
     #Look for duplicates in the list (second check)
@@ -514,10 +526,8 @@ if [ $S7 = 1 ] ; then
     printf "\n###### ${GREEN} Filtering to remove sequences with that are >${MINCOV} percent coverage and >${MINBREADTH}x average depth ${NC} ######\n\n"
     
     #Pull out all of the submittable SeqID entries that should be retained by searching column headers
-    COVCOL=`awk -F"\t" 'NR==1{ for (i=1;i<=NF;i++) if ($i == "sequencing_depth_avg") print i }' allsequencedata.csv`
-    printf "     Coverage column is: $COVCOL \n"
-    BREADTHCOL=`awk -F"\t" 'NR==1{ for (i=1;i<=NF;i++) if ($i == "coverage_breadth") print i }' allsequencedata.csv`
-    printf "     Breadth column is: $BREADTHCOL \n"
+    COVCOL="$(GETCOLMID "\t" "sequencing_depth_avg" "$ALLSEQDATAFN")"
+    BREADTHCOL="$(GETCOLMID "\t" "coverage_breadth" "$ALLSEQDATAFN")"
     
     awk -F"\t" -v i=$COVCOL -v j=$BREADTHCOL -v k=$SUBCOL -v l=$SEQIDCOL '$i > 90 && $j > 90 && $k ~ /True/ {print$l}' allsequencedata.csv > samples.csv
 
@@ -532,5 +542,58 @@ if [ $S7 = 1 ] ; then
     #Filter the list of all sequences to only retain the correct ones
     seqkit grep -n -f samples.csv $ALLSEQ -o allsequences.submittable.qc.fasta
     rm samples.csv
+else
+    printf "###### ${GREEN}Step 7: Skipping generation of filtered fasta file${NC} ######\n\n"
+
 fi
+
+if [ $S8 = 1 ] ; then
+    printf "###### ${BLUE}Step 8: Running ncov-tools QC pipeline${NC} ######\n\n"
+    
+    CONDA=`which conda | sed s'/\/condabin//' | sed s'/bin\///' | sed s'/\/conda//'`
+    source $CONDA/etc/profile.d/conda.sh 
+    set +eu
+    conda activate ncov-qc
+    check_package "snakemake" "ncov-tools environment" "Please activate the appropriate environment e.g.:\n\n conda activate ncov-qc\n"
+    
+    QCDIR="$BASEFOLDER/6_QCAnalysis/$RUNNAME"
+    check_mkdir $QCDIR
+    rm -rvf $QCDIR/*
+    
+    cd "$BASEFOLDER/6_QCAnalysis/$RUNNAME"
+    
+    printf "Removing prior QC run. Generating Metadata.tsv and config.yaml file\n"
+    SEQIDCOL="$(GETCOLMID "," "SeqID" "$SAMPLEFILE")"
+    CTCOL="$(GETCOLMID "," "Ctvalue" "$SAMPLEFILE")"
+    SEQRUNCOL="$(GETCOLMID "," "SeqRun" "$SAMPLEFILE")"
+    
+    #Create metadata file
+    METADATAFN=Metadata.tsv
+    awk -F"," -v i=$SEQRUNCOL -v k=$SEQIDCOL -v l=$CTCOL 'NR==1 {print "sample","ct"} $i ~ /'$RUNNAME'/ {print$k,$l}' OFS='\t' $SAMPLEFILE > $METADATAFN
+
+    #NTCLIST=`awk -F"\t" '{print$1}' Metadata.tsv | grep NTC | sed -e 's/^/\\"/' | awk -vORS=, '{print$1}'`
+    NTCLIST=`awk -F"\t" '{print$1}' Metadata.tsv | grep NTC | sed -e 's/^/\\"/' | sed -e 's/$/\\"/' | awk -vORS=, '{print$1}'`
+    NTCLIST=${NTCLIST::-1}
+    YAMLFN="config.yaml"
+    printf "Generating config.yaml file\n"
+    printf "data_root: $BASEFOLDER/3_Artic_Output/$RUNNAME/processed
+run_name: $RUNNAME
+reference_genome: ${PRIMERDIR}/${PRIMERSCHEME}/SARS-CoV-2.reference.fasta
+platform: oxford-nanopore
+primer_bed: ${PRIMERDIR}/${PRIMERSCHEME}/SARS-CoV-2.bed
+bam_pattern: \"{data_root}/{sample}/{sample}.sorted.bam\"
+consensus_pattern: \"{data_root}/{sample}/{sample}.consensus.fasta\"
+variants_pattern: \"{data_root}/{sample}/{sample}.pass.vcf.gz\"
+skip_empty_negatives: true
+metadata: \"$METADATAFN\"
+negative_control_samples: [ $NTCLIST ]\n" > $YAMLFN
+    
+    printf "Generating Metadata.tsv file\n"
+    snakemake --cores all -s ~/git/ncov-tools/workflow/Snakefile all_final_report
+else
+    printf "###### ${GREEN}Step 8: Skipping generation of QC stats${NC} ######\n\n"
+
+    fi
+
+
 exit
