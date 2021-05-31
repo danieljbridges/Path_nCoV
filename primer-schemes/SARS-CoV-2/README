@@ -1,3 +1,5 @@
 V1 = UNZA Sanger primers  
 V2 = Midnight primers
 V3 = Artic primers
+
+nextclade_primers.csv - primer sequences to look at mutations in primer binding sites

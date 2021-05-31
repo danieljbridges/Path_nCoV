@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -x
 # ----------------------------------------------------------------------
 # Script to automate the artic processing pipeline for SARS-CoV-2 WGS
 # Written by Daniel Bridges (danieljbridges@gmail.com)
@@ -414,12 +414,25 @@ fi
 #STEP 5: Generate stats
 if [ $S5 = 1 ] ; then
     printf "\n###### ${BLUE}Step 5: Generating statistics and lineages on sequences. ${NC} ######\n"
-    
     printf "\n###### ${GREEN} Copying all consensus sequences (${ALLSEQ}) ${NC} ######\n\n"
     cd "$BASEFOLDER/5_GISAID"
     cp ../4_Consensus/$ALLSEQ ./
     printf "Done"
 
+    printf "\n###### ${GREEN} Determining nextclade lineages ${NC} ######\n\n"
+    check_package "nextclade" "nextclade package" "Please ensure that nextclade is installed (see https://www.npmjs.com/package/@neherlab/nextclade)\n"
+    #run nextclade
+    if [ $PRIMERDIR == 1 ] ; then
+        nextclade -i $ALLSEQ -c nextclade.csv -o nextclade.json cd2>&1 | tee "${LOGFOLDER}nextclade.log"
+    else
+        PRIMERFILE="$PRIMERDIR/SARS-CoV-2/nextclade_primers.csv"
+        printf "Using custom primer file ($PRIMERFILE)"
+        present $PRIMERFILE "f"
+        nextclade -i $ALLSEQ -c nextclade.csv -o nextclade.json --input-pcr-primers $PRIMERFILE cd2>&1 | tee "${LOGFOLDER}nextclade.log"
+    fi
+    mv nextclade* intermediates/
+    exit
+    
     printf "\n###### ${GREEN} Determining PANGO lineages ${NC} ######\n\n"
     CONDA=`which conda | sed s'/\/condabin//' | sed s'/bin\///' | sed s'/\/conda//'`
     source $CONDA/etc/profile.d/conda.sh 
@@ -427,14 +440,8 @@ if [ $S5 = 1 ] ; then
     conda activate pangolin
     check_package "pangolin" "pangolin environment" "Please activate the appropriate environment e.g.:\n\n conda activate pangolin\n"
     #run pangolin
-    pangolin $ALLSEQ 2>&1 | tee "${LOGFOLDER}pango.log"
-    mv lineage_report.csv intermediates/
-    
-    printf "\n###### ${GREEN} Determining nextclade lineages ${NC} ######\n\n"
-    check_package "nextclade" "nextclade package" "Please ensure that nextclade is installed (see https://www.npmjs.com/package/@neherlab/nextclade)\n"
-    #run nextclade
-    nextclade -i $ALLSEQ -c nextclade.csv -o nextclade.json cd2>&1 | tee "${LOGFOLDER}nextclade.log"
-    mv nextclade* intermediates/
+    #pangolin $ALLSEQ 2>&1 | tee "${LOGFOLDER}pango.log"
+    #mv lineage_report.csv intermediates/
         
     printf "\n###### ${GREEN} Determining sequencing statistics, merging with PANGO, Nextclade and metadata ${NC} ######\n\n"
     sequencing_statistics.py -d $BASEFOLDER 2>&1 | tee "${LOGFOLDER}gisaid.log"
