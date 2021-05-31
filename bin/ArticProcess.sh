@@ -1,4 +1,4 @@
-#!/bin/bash -x
+#!/bin/bash
 # ----------------------------------------------------------------------
 # Script to automate the artic processing pipeline for SARS-CoV-2 WGS
 # Written by Daniel Bridges (danieljbridges@gmail.com)
