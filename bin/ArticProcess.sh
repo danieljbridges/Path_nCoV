@@ -439,8 +439,8 @@ if [ $S5 = 1 ] ; then
     conda activate pangolin
     check_package "pangolin" "pangolin environment" "Please activate the appropriate environment e.g.:\n\n conda activate pangolin\n"
     #run pangolin
-    #pangolin $ALLSEQ 2>&1 | tee "${LOGFOLDER}pango.log"
-    #mv lineage_report.csv intermediates/
+    pangolin $ALLSEQ 2>&1 | tee "${LOGFOLDER}pango.log"
+    mv lineage_report.csv intermediates/
         
     printf "\n###### ${GREEN} Determining sequencing statistics, merging with PANGO, Nextclade and metadata ${NC} ######\n\n"
     sequencing_statistics.py -d $BASEFOLDER 2>&1 | tee "${LOGFOLDER}gisaid.log"
