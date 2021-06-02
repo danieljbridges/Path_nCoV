@@ -426,12 +426,11 @@ if [ $S5 = 1 ] ; then
         nextclade -i $ALLSEQ -c nextclade.csv -o nextclade.json cd2>&1 | tee "${LOGFOLDER}nextclade.log"
     else
         PRIMERFILE="$PRIMERDIR/SARS-CoV-2/nextclade_primers.csv"
-        printf "Using custom primer file ($PRIMERFILE)"
+        printf "Using custom primer file ($PRIMERFILE)\n"
         present $PRIMERFILE "f"
         nextclade -i $ALLSEQ -c nextclade.csv -o nextclade.json --input-pcr-primers $PRIMERFILE cd2>&1 | tee "${LOGFOLDER}nextclade.log"
     fi
     mv nextclade* intermediates/
-    exit
     
     printf "\n###### ${GREEN} Determining PANGO lineages ${NC} ######\n\n"
     CONDA=`which conda | sed s'/\/condabin//' | sed s'/bin\///' | sed s'/\/conda//'`
