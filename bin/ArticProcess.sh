@@ -307,7 +307,7 @@ if [ $S1 = 1 ] ; then
     printf "\n###### ${BLUE}Step 1: Running the guppy_barcoder to demultiplex the FASTQ files.${NC} ######\n\n"
     printf "guppy_barcoder --require_barcodes_both_ends -i $FASTQRAW -s $ARTIC_OUT/fastq --arrangements_files barcode_arrs_nb96.cfg${NC}\n" | tee "${RUNLOG}1.log"
     
-    guppy_barcoder --require_barcodes_both_ends -i $FASTQRAW -s $ARTIC_OUT/fastq --arrangements_files "barcode_arrs_nb96.cfg" | tee "${RUNLOG}1.log"
+    guppy_barcoder --require_barcodes_both_ends -i $FASTQRAW -s $ARTIC_OUT/fastq --arrangements_files "barcode_arrs_nb96.cfg" | tee -a "${RUNLOG}1.log"
     printf "\n###### ${GREEN}Step 1: guppy_barcoder completed. ${NC} ######\n\n"
 else
     printf "###### ${GREEN}Step 1: Skipping guppy_barcoder step${NC} ######\n\n"
@@ -360,7 +360,7 @@ if [ $S3 = 1 ] ; then
             echo -e "\n\n \n${ORANGE} Processing barcode number $BARCODE, Sample $SAMPLENAME from file $FILE \n${NC}" | tee -a "${RUNLOG}3.log"
             
             #Remove files that have not got enough data
-            if [ $FASTQLENGTH -gt 1000 ] ; then
+            #if [ $FASTQLENGTH -gt 10 ] ; then
                 #Run processing scheme
                 if [ $MEDAKA = 1 ] ; then
                     printf "\n${GREEN}Using Medaka pipeline${NC}\n"
@@ -379,9 +379,9 @@ if [ $S3 = 1 ] ; then
                 find ./ -type f -name "$SAMPLENAME*" | xargs -I '{}'  mv {} "$SAMPLENAME"/
                 #Move directory to another level for clarity
                 mv $ARTIC_OUT/fastq/$SAMPLENAME $ARTIC_OUT/processed/$SAMPLENAME
-            else
-                printf "\n\n${RED}ERROR:${NC} Too few reads (n = $FASTQLENGTH) in File $FILE (Barcode $BARCODE, Sample $SAMPLENAME).\nAborting processing this file\n" | tee -a "${RUNLOG}3.log"
-            fi
+#             else
+#                 printf "\n\n${RED}ERROR:${NC} Too few reads (n = $FASTQLENGTH) in File $FILE (Barcode $BARCODE, Sample $SAMPLENAME).\nAborting processing this file\n" | tee -a "${RUNLOG}3.log"
+#             fi
         fi
     done
     echo -e "\n###### ${GREEN}Step 3: artic minion completed. ${NC} ######\n\n"
