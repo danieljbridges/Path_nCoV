@@ -369,7 +369,7 @@ if [ $S3 = 1 ] ; then
             echo -e "\n\n \n${ORANGE} Processing barcode number $BARCODE, Sample $SAMPLENAME from file $FILE \n${NC}" | tee -a "${RUNLOG}3.log"
             
             #Remove files that have not got enough data
-            if [ $FASTQLENGTH -gt 10 ] ; then
+            if [ $FASTQLENGTH -gt 1 ] ; then
                 #Run processing scheme
                 if [ $MEDAKA = 1 ] ; then
                     printf "\n${GREEN}Using Medaka pipeline${NC}\n"
@@ -577,8 +577,21 @@ if [ $S8 = 1 ] ; then
     SEQRUNCOL="$(GETCOLMID "," "SeqRun" "$SAMPLEFILE")"
     METADATAFN=Metadata.tsv
     awk -F"," -v i=$SEQRUNCOL -v k=$SEQIDCOL -v l=$CTCOL 'NR==1 {print "sample","ct"} $i ~ /'$RUNNAME'/ {print$k,$l}' OFS='\t' $SAMPLEFILE > $METADATAFN
-    NTCLIST=`awk -F"\t" '{print$1}' Metadata.tsv | grep NTC | sed -e 's/^/\\"/' | sed -e 's/$/\\"/' | awk -vORS=, '{print$1}'`
-    NTCLIST=${NTCLIST::-1}
+    NTCLIST1=`awk -F"\t" '{print$1}' Metadata.tsv | grep NTC | sed -e 's/^/\\"/' | sed -e 's/$/\\"/' | awk -vORS=, '{print$1}'`
+    NTCLIST=() #declare as an empty variable
+    #ncov-tools can't deal with NTC that has no related bam file therefore if no bam remove from the list
+    for NTC in "${NTCLIST1[@]}" ; do
+        N=`echo $NTC | sed 's/"//g' | sed 's/,//g'`
+        printf "N = $N\n"
+        NTCDIR="${BASEFOLDER}/3_Artic_Output/$RUNNAME/processed/$N"
+        printf "NTCDIR = $NTCDIR\n"
+        if [ ! -d $NTCDIR ] ; then
+            printf "Missing NTC directory for $N. Dropping from analysis\n"
+        else
+            NTCLIST+=($NTC)
+        fi
+    done
+    
     YAMLFN="config.yaml"
     printf "Generating Metadata.tsv file\n"
     printf "data_root: $BASEFOLDER/3_Artic_Output/$RUNNAME/processed
@@ -597,6 +610,5 @@ negative_control_samples: [ $NTCLIST ]\n" > $YAMLFN
     snakemake --cores all -s ~/git/ncov-tools/workflow/Snakefile all_final_report
 else
     printf "###### ${GREEN}Step 8: Skipping generation of QC stats${NC} ######\n\n"
-
-    fi
+fi
 exit
