@@ -9,8 +9,8 @@ set -e #exit whenever a command exits with a non zero status
 set -u #treat undefined variables as errors
 set -o pipefail #pipe will be considered successful if all the commands are executed without errors
 
-VERSION="0.6"
-VERDATE="2021-05-31"
+VERSION="0.7"
+VERDATE="2021-06-06"
 #ANSI escape codes: 
 #Black        0;30     Dark Gray     1;30
 #Red          0;31     Light Red     1;31
@@ -97,13 +97,22 @@ function check_var {
 
 function check_package {
     if [ $(which $1 | wc -l) = 0 ] ; then
-        printf "${RED}ERROR:${NC} $2 not present. $3 \n Exiting script\n\n"
+        printf "${RED}ERROR:${NC} $2 not present. Please install the following and try again:\n"
+        printf "   $3\n\n"
+        printf "${RED}Exiting script${NC}\n\n"
         exit
     fi
 }
 
 function GETCOLMID {
 awk -F"$1" 'NR==1{ for (i=1;i<=NF;i++) if ($i == "'$2'") print i }' $3
+}
+
+function change_conda {
+    CONDA=`which conda | sed s'/\/condabin//' | sed s'/bin\///' | sed s'/\/conda//'`
+    source $CONDA/etc/profile.d/conda.sh 
+    set +eu
+    conda activate $1
 }
 
 #==============Recognise any CLI options==================
@@ -209,13 +218,13 @@ ALLSEQ="allsequences.fasta" #Name of file for all sequences to output to
 #Determine if the necessary files and directories and arguments etc exist for each step
 printf ""
 if [ $S1 = 1 ] ; then
-    check_package "guppy_barcoder" "guppy" "Please install from ONT website\n"
+    check_package "guppy_barcoder" "guppy" "guppy (from ONT website)\n"
     FASTQRAW="$RAWDATADIR/fastq_pass"
     present $FASTQRAW "d"
 fi
 
 if [ $S2 = 1 ] || [ $S3 = 1 ]; then
-    check_package "artic" "artic" "Please activate the appropriate environment e.g.:\n\n conda activate artic\n"
+    check_package "artic" "artic" "artic"
 fi
 
 if [ $S2 = 1 ] || [ $S3 = 1 ] || [ $S8 = 1 ]; then
@@ -418,9 +427,10 @@ if [ $S5 = 1 ] ; then
     cd "$BASEFOLDER/5_GISAID"
     cp ../4_Consensus/$ALLSEQ ./
     printf "Done"
-
+    
     printf "\n###### ${GREEN} Determining nextclade lineages ${NC} ######\n\n"
-    check_package "nextclade" "nextclade package" "Please ensure that nextclade is installed (see https://www.npmjs.com/package/@neherlab/nextclade)\n"
+    change_conda base
+    check_package "nextclade" "nextclade package" "nextclade (https://www.npmjs.com/package/@neherlab/nextclade)"
     #run nextclade
     if [ $PRIMERDIR == 1 ] ; then
         nextclade -i $ALLSEQ -c nextclade.csv -o nextclade.json cd2>&1 | tee "${LOGFOLDER}nextclade.log"
@@ -433,12 +443,8 @@ if [ $S5 = 1 ] ; then
     mv nextclade* intermediates/
     
     printf "\n###### ${GREEN} Determining PANGO lineages ${NC} ######\n\n"
-    CONDA=`which conda | sed s'/\/condabin//' | sed s'/bin\///' | sed s'/\/conda//'`
-    source $CONDA/etc/profile.d/conda.sh 
-    set +eu
-    conda activate pangolin
-    check_package "pangolin" "pangolin environment" "Please activate the appropriate environment e.g.:\n\n conda activate pangolin\n"
-    #run pangolin
+    change_conda pangolin
+    check_package "pangolin" "pangolin environment" "pangolin"
     pangolin $ALLSEQ 2>&1 | tee "${LOGFOLDER}pango.log"
     mv lineage_report.csv intermediates/
         
@@ -555,33 +561,26 @@ fi
 
 if [ $S8 = 1 ] ; then
     printf "###### ${BLUE}Step 8: Running ncov-tools QC pipeline${NC} ######\n\n"
-    
-    CONDA=`which conda | sed s'/\/condabin//' | sed s'/bin\///' | sed s'/\/conda//'`
-    source $CONDA/etc/profile.d/conda.sh 
-    set +eu
-    conda activate ncov-qc
-    check_package "snakemake" "ncov-tools environment" "Please activate the appropriate environment e.g.:\n\n conda activate ncov-qc\n"
-    
+    change_conda "ncov-qc"
+    check_package "snakemake" "ncov-tools environment" "ncov-qc"
     QCDIR="$BASEFOLDER/6_QCAnalysis/$RUNNAME"
     check_mkdir $QCDIR
-    rm -rvf $QCDIR/*
-    
+       
     cd "$BASEFOLDER/6_QCAnalysis/$RUNNAME"
     
-    printf "Removing prior QC run. Generating Metadata.tsv and config.yaml file\n"
+    printf "Removing prior QC run details:\n"
+    rm -rvf $QCDIR/*
+    
+    printf "\nGenerating config.yaml file\n"
     SEQIDCOL="$(GETCOLMID "," "SeqID" "$SAMPLEFILE")"
     CTCOL="$(GETCOLMID "," "Ctvalue" "$SAMPLEFILE")"
     SEQRUNCOL="$(GETCOLMID "," "SeqRun" "$SAMPLEFILE")"
-    
-    #Create metadata file
     METADATAFN=Metadata.tsv
     awk -F"," -v i=$SEQRUNCOL -v k=$SEQIDCOL -v l=$CTCOL 'NR==1 {print "sample","ct"} $i ~ /'$RUNNAME'/ {print$k,$l}' OFS='\t' $SAMPLEFILE > $METADATAFN
-
-    #NTCLIST=`awk -F"\t" '{print$1}' Metadata.tsv | grep NTC | sed -e 's/^/\\"/' | awk -vORS=, '{print$1}'`
     NTCLIST=`awk -F"\t" '{print$1}' Metadata.tsv | grep NTC | sed -e 's/^/\\"/' | sed -e 's/$/\\"/' | awk -vORS=, '{print$1}'`
     NTCLIST=${NTCLIST::-1}
     YAMLFN="config.yaml"
-    printf "Generating config.yaml file\n"
+    printf "Generating Metadata.tsv file\n"
     printf "data_root: $BASEFOLDER/3_Artic_Output/$RUNNAME/processed
 run_name: $RUNNAME
 reference_genome: ${PRIMERDIR}/${PRIMERSCHEME}/SARS-CoV-2.reference.fasta
@@ -594,12 +593,11 @@ skip_empty_negatives: true
 metadata: \"$METADATAFN\"
 negative_control_samples: [ $NTCLIST ]\n" > $YAMLFN
     
-    printf "Generating Metadata.tsv file\n"
+    printf "Running snakemake report\n"
+    
     snakemake --cores all -s ~/git/ncov-tools/workflow/Snakefile all_final_report
 else
     printf "###### ${GREEN}Step 8: Skipping generation of QC stats${NC} ######\n\n"
 
     fi
-
-
 exit
