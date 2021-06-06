@@ -594,7 +594,6 @@ metadata: \"$METADATAFN\"
 negative_control_samples: [ $NTCLIST ]\n" > $YAMLFN
     
     printf "Running snakemake report\n"
-    
     snakemake --cores all -s ~/git/ncov-tools/workflow/Snakefile all_final_report
 else
     printf "###### ${GREEN}Step 8: Skipping generation of QC stats${NC} ######\n\n"
