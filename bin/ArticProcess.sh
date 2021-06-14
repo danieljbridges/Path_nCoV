@@ -9,8 +9,8 @@ set -e #exit whenever a command exits with a non zero status
 set -u #treat undefined variables as errors
 set -o pipefail #pipe will be considered successful if all the commands are executed without errors
 
-VERSION="0.7"
-VERDATE="2021-06-06"
+VERSION="0.7.1"
+VERDATE="2021-06-14"
 #ANSI escape codes: 
 #Black        0;30     Dark Gray     1;30
 #Red          0;31     Light Red     1;31
@@ -39,6 +39,7 @@ function Help {
    basefolder/3_Artic_Output                Processed files from artic pipeline
    basefolder/4_Consensus                   Consensus sequences multi-fasta per run
    basefolder/5_GISAID                      Sequences for uploading to GISAID
+   basefolder/6_QCAnalysis                  QC output from ncov-tools
    
    Syntax: $(basename "$0") [-123456hv|b|r|m|p|s]
    Version: $VERSION, $VERDATE
