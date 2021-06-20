@@ -315,9 +315,21 @@ printf "${GREEN}CHECKED:${NC}All required programs, files and locations are pres
 #STEP 1: Run the guppy barcoder to demultiplex into separate barcodes
 if [ $S1 = 1 ] ; then
     printf "\n###### ${BLUE}Step 1: Running the guppy_barcoder to demultiplex the FASTQ files.${NC} ######\n\n"
-    printf "guppy_barcoder --require_barcodes_both_ends -i $FASTQRAW -s $ARTIC_OUT/fastq --arrangements_files barcode_arrs_nb96.cfg${NC}\n" | tee -a "${RUNLOG}1.log"
+    printf "Looking for mk1c data structure\n"
     
+    if [ `find $FASTQRAW -type d -name 'barcode*' | wc -l ` -gt 0 ] ; then
+        printf "Identified mk1c data structure\n"
+        printf "Moving all fastq files to $FASTQRAW directory and deleting subdirectories"
+        find $FASTQRAW -type f -name '*.fastq' | xargs -I '{}'  mv {} ${FASTQRAW}/
+        rm -rvf $FASTQRAW/barcode*
+        rm -rvf $FASTQRAW/unclassified
+    else
+        printf "Found standard data structure\n"
+    fi
+    
+    printf "guppy_barcoder --require_barcodes_both_ends -i $FASTQRAW -s $ARTIC_OUT/fastq --arrangements_files barcode_arrs_nb96.cfg${NC}\n" | tee "${RUNLOG}1.log"
     guppy_barcoder --require_barcodes_both_ends -i $FASTQRAW -s $ARTIC_OUT/fastq --arrangements_files "barcode_arrs_nb96.cfg" | tee -a "${RUNLOG}1.log"
+    
     printf "\n###### ${GREEN}Step 1: guppy_barcoder completed. ${NC} ######\n\n"
 else
     printf "###### ${GREEN}Step 1: Skipping guppy_barcoder step${NC} ######\n\n"
