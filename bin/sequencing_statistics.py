@@ -389,6 +389,8 @@ samplemeta_df['Sex'].fillna(value="Unknown", inplace=True)
 samplemeta_df['Sex'].replace({"M":"Male","F":"Female"}, inplace = True)
 samplemeta_df['Age'].fillna(value="Unknown", inplace=True) 
 samplemeta_df['PatientStatus'].fillna(value="Unknown", inplace=True)
+#Reset the index so you can add rows correctly into the new dataframe
+samplemeta_df.reset_index(inplace=True, drop=True)
 
 #Create an empty dataframe with length of samplemeta_df
 gisaid_df = pd.DataFrame(index=np.arange(samplemeta_df.shape[0]), columns=np.arange(0))
