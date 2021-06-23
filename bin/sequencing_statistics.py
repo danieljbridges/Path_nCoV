@@ -12,7 +12,6 @@
 
 import os
 import sys
-import subprocess
 import time
 import datetime
 import getopt
@@ -370,6 +369,14 @@ print("")
 print("-" * 80)
 print("Generating GISAID submission files")
 
+print("%d samples identified" % samplemeta_df.shape[0])
+#Drop all entries without a date
+samplemeta_df.query("SpecimenDate > datetime.datetime(2000,1,1)",inplace = True)
+print("   %d samples with a date" % samplemeta_df.shape[0])
+#Drop all entries previously submitted
+samplemeta_df.query("GISAID_Accession_Number != GISAID_Accession_Number",inplace = True)
+print("   %d samples without an accession number" % samplemeta_df.shape[0])
+
 #Pull out the year
 samplemeta_df["Year"] = samplemeta_df['SpecimenDate'].dt.year.astype('Int64')
 #Generate a Province / District location
@@ -386,10 +393,8 @@ samplemeta_df['PatientStatus'].fillna(value="Unknown", inplace=True)
 #Create an empty dataframe with length of samplemeta_df
 gisaid_df = pd.DataFrame(index=np.arange(samplemeta_df.shape[0]), columns=np.arange(0))
 # pd.DataFrame(index=np.arange(1), columns=np.arange(8))
-gisaid_df["GISAID_Accession_Number"] = samplemeta_df['GISAID_Accession_Number']
-gisaid_df["SeqID"] = samplemeta_df['SeqID']
 gisaid_df["submitter"] = "djbridges"
-gisaid_df["fn"] = "filename"
+gisaid_df["fn"] = "Metadata.xls"
 gisaid_df["covv_virus_name"] = "hCoV-19/Zambia/ZMB-"+ samplemeta_df['SampleID'].astype('str') + "/" + samplemeta_df['Year'].astype('str')
 gisaid_df["covv_type"] = "betacoronavirus"
 gisaid_df["covv_passage"] = "Original"
@@ -414,14 +419,14 @@ gisaid_df["covv_provider_sample_id"] = ""
 gisaid_df["covv_subm_lab"] = "UNZAVET and PATH"
 gisaid_df["covv_subm_lab_addr"] = "University of Zambia, School of Veterinary Medicine, Gt East Road Campus, Lusaka, Zambia"
 gisaid_df["covv_subm_sample_id"] = samplemeta_df["SampleID"]
-gisaid_df["covv_authors"] = "Mulenga Mwenda-Chimfwembe, Ngonda Saasa, Daniel Bridges"
+gisaid_df["covv_authors"] = "Mulenga Mwenda-Chimfwembe, Ngonda Saasa, Daniel Bridges and ZGSC"
 gisaid_df["covv_comment"] = ""
 gisaid_df["comment_type"] =""
 print("Done")
 
 #WRITE RESULTS
-print("  Writing out unfiltered gisaid submission file (includes sequences already submitted)...")
-output_fn = "GISAID_Submission_Data_Unfiltered.csv"
+print("  Writing out gisaid submission file (all sequences ready for submission)...")
+output_fn = "GISAID_Submission_Data.csv"
 gisaid_df.to_csv(os.path.join(data_dir, output_fn), sep = '\t', index=False)
 print("  To: %s" % os.path.join(data_dir, output_fn))
 print("Done.")
