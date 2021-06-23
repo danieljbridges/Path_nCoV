@@ -237,8 +237,8 @@ else:
     print("  All sequences match across the three files")
 
 print("  Merging gisaid (n=%d), pango (n=%d) and nextclade (n=%d) data together" % (stats_df.shape[0], pango_df.shape[0], nextclade_df.shape[0]))
-Merge1 = pd.merge(stats_df, pango_df, how='inner', left_on='SeqID', right_on='taxon')
-Merge2 = pd.merge(Merge1, nextclade_df, how='inner', left_on='SeqID', right_on='seqName')
+Merge1 = pd.merge(stats_df, pango_df, how='outer', left_on='SeqID', right_on='taxon')
+Merge2 = pd.merge(Merge1, nextclade_df, how='outer', left_on='SeqID', right_on='seqName')
 print("  Total remaining records = %d" % (Merge2.shape[0]))
 print("  Removing unwanted column headings from final summary file of samples sequenced")
 gisaidcols = ['ref_genome_length']
