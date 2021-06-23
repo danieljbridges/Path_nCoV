@@ -242,7 +242,7 @@ print("  Total remaining records = %d" % (Merge2.shape[0]))
 print("  Removing unwanted column headings from final summary file of samples sequenced")
 gisaidcols = ['ref_genome_length']
 pangocols = (['pangoLEARN_version','taxon'])
-nextcladecols = ['seqName','qc.mixedSites.mixedSitesThreshold','qc.mixedSites.score','qc.mixedSites.status','qc.mixedSites.totalMixedSites','qc.privateMutations.cutoff','qc.missingData.missingDataThreshold','totalNonACGTNs','nonACGTNs']
+nextcladecols = ['seqName']
 dropcols = gisaidcols + pangocols + nextcladecols
 sequenced_df = Merge2.drop(dropcols, axis=1)
 print("Done.")
