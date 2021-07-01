@@ -9,8 +9,8 @@ set -e #exit whenever a command exits with a non zero status
 set -u #treat undefined variables as errors
 set -o pipefail #pipe will be considered successful if all the commands are executed without errors
 
-VERSION="0.7.1"
-VERDATE="2021-06-14"
+VERSION="0.8.1"
+# VERDATE="2021-06-20"
 #ANSI escape codes: 
 #Black        0;30     Dark Gray     1;30
 #Red          0;31     Light Red     1;31
@@ -42,7 +42,7 @@ function Help {
    basefolder/6_QCAnalysis                  QC output from ncov-tools
    
    Syntax: $(basename "$0") [-123456hv|b|r|m|p|s]
-   Version: $VERSION, $VERDATE
+   Version: $VERSION
    
     Mandatory args:
     -b      Basefolder for all inputs and outputs - please use an absolute path
@@ -52,7 +52,7 @@ function Help {
     -h      Print this help
     -m      Process using the medaka pipeline rather than with nanopolish
     -p      Primers used during PCR [Sanger | Artic | Midnight]
-    -s      Location directory of the primer scheme used
+    -s      Location directory for all reference information including primers
     -v      Version
 
     Optional steps to omit:
@@ -130,7 +130,7 @@ while getopts 'vhp:b:r:s:m12345678' opt; do
       PRIMERS=$OPTARG
       ;;
     s)
-      PRIMERDIR=$OPTARG
+      REFDIR=$OPTARG
       ;;
     h)
       Help
@@ -203,7 +203,7 @@ S6=${S6:- 1}
 S7=${S7:- 1}
 S8=${S8:- 1}
 MEDAKA=${MEDAKA:- 0}            # 3
-PRIMERDIR=${PRIMERDIR:- 1}      # 3
+REFDIR=${REFDIR:- 1}      # 3
 PRIMERS=${PRIMERS:- 1}          # 2, 3
 ARTIC_OUT="$BASEFOLDER/3_Artic_Output/$RUNNAME"
 RAWDATADIR="$BASEFOLDER/1_Raw/$RUNNAME"
@@ -234,15 +234,15 @@ if [ $S2 = 1 ] || [ $S3 = 1 ] || [ $S8 = 1 ]; then
     if [ $PRIMERS = "Sanger" ] ; then
         MAX=1250
         MIN=750
-        PRIMERSCHEME=SARS-CoV-2/V1
+        PRIMERSCHEME=V1
     elif [ $PRIMERS = "Artic" ] ; then
         MAX=700
         MIN=400
-        PRIMERSCHEME=SARS-CoV-2/V3
+        PRIMERSCHEME=V3
     elif [ $PRIMERS = "Midnight" ] ; then
         MAX=950
         MIN=1450
-        PRIMERSCHEME=SARS-CoV-2/V2
+        PRIMERSCHEME=V2
     else
         Help
         printf "${RED}ERROR:${NC} Unrecognised primer scheme\n\n"
@@ -252,8 +252,8 @@ fi
 
 if [ $S3 = 1 ] || [ $S8 = 1 ]; then
     #Check primer scheme supplied
-    check_var $PRIMERDIR "-s (primer scheme location)"
-    PRIMERDIR=`realpath $PRIMERDIR`
+    check_var $REFDIR "-s (reference directory)"
+    REFDIR=`realpath $REFDIR`
 fi
 
 
@@ -386,13 +386,13 @@ if [ $S3 = 1 ] ; then
                 #Run processing scheme
                 if [ $MEDAKA = 1 ] ; then
                     printf "\n${GREEN}Using Medaka pipeline${NC}\n"
-                    printf "${LG}artic minion --medaka --normalise 200 --threads 24 --scheme-directory $PRIMERDIR --read-file $FILE $PRIMERSCHEME $SAMPLENAME ${NC}\n" | tee -a "${RUNLOG}3.log"
-                    artic minion --medaka --normalise 200 --threads 24 --scheme-directory $PRIMERDIR --read-file $FILE $PRIMERSCHEME $SAMPLENAME 2>&1 | tee -a "${RUNLOG}3.log"
+                    printf "${LG}artic minion --medaka --normalise 200 --threads 24 --scheme-directory $REFDIR/primer-schemes/ --read-file $FILE $PRIMERSCHEME $SAMPLENAME ${NC}\n" | tee -a "${RUNLOG}3.log"
+                    artic minion --medaka --normalise 200 --threads 24 --scheme-directory $REFDIR/primer-schemes/ --read-file $FILE $PRIMERSCHEME $SAMPLENAME 2>&1 | tee -a "${RUNLOG}3.log"
                     # 2>&1 redirects stderr to stdout
                 else
                     printf "\n${GREEN}Using Nanopolish pipeline${NC}\n"
-                    printf "${LG}artic minion --normalise 200 --threads 24 --scheme-directory $PRIMERDIR --read-file $FILE --fast5-directory $RAWDATADIR --sequencing-summary $SEQUENCINGSUMMARY $PRIMERSCHEME $SAMPLENAME${NC}\n" | tee -a "${RUNLOG}3.log"
-                    artic minion --normalise 200 --threads 24 --scheme-directory $PRIMERDIR --read-file $FILE --fast5-directory $RAWDATADIR --sequencing-summary $SEQUENCINGSUMMARY $PRIMERSCHEME $SAMPLENAME 2>&1 | tee -a "${RUNLOG}3.log"
+                    printf "${LG}artic minion --normalise 200 --threads 24 --scheme-directory $REFDIR/primer-schemes/ --read-file $FILE --fast5-directory $RAWDATADIR --sequencing-summary $SEQUENCINGSUMMARY $PRIMERSCHEME $SAMPLENAME${NC}\n" | tee -a "${RUNLOG}3.log"
+                    artic minion --normalise 200 --threads 24 --scheme-directory $REFDIR/primer-schemes/ --read-file $FILE --fast5-directory $RAWDATADIR --sequencing-summary $SEQUENCINGSUMMARY $PRIMERSCHEME $SAMPLENAME 2>&1 | tee -a "${RUNLOG}3.log"
                 fi
                 
                 #Make samplename subdirectory if required
@@ -442,18 +442,15 @@ if [ $S5 = 1 ] ; then
     printf "Done"
     
     printf "\n###### ${GREEN} Determining nextclade lineages ${NC} ######\n\n"
-    change_conda base
-    check_package "nextclade" "nextclade package" "nextclade (https://www.npmjs.com/package/@neherlab/nextclade)"
-    #run nextclade
-    if [ $PRIMERDIR == 1 ] ; then
-        nextclade -i $ALLSEQ -c nextclade.csv -o nextclade.json cd2>&1 | tee "${LOGFOLDER}nextclade.log"
-    else
-        PRIMERFILE="$PRIMERDIR/SARS-CoV-2/nextclade_primers.csv"
-        printf "Using custom primer file ($PRIMERFILE)\n"
-        present $PRIMERFILE "f"
-        nextclade -i $ALLSEQ -c nextclade.csv -o nextclade.json --input-pcr-primers $PRIMERFILE cd2>&1 | tee "${LOGFOLDER}nextclade.log"
-    fi
+    change_conda nextclade
+    check_package "nextclade" "nextclade package" "nextcladecondaconda conda activate "
+    NCLADE_REF="$REFDIR/nextclade"
+    printf "nextclade --input-fasta $ALLSEQ --output-csv nextclade.csv --output-json nextclade.json --input-pcr-primers $NCLADE_REF/nextclade_primers.csv --input-root-seq $NCLADE_REF/root.fasta --input-tree $NCLADE_REF/tree.json --input-qc-config $NCLADE_REF/qc.json --input-gene-map $NCLADE_REF/genemap.gff \n\n" | tee "${LOGFOLDER}nextclade.log"
+    nextclade --input-fasta $ALLSEQ --output-csv nextclade.csv --output-json nextclade.json --input-pcr-primers $NCLADE_REF/nextclade_primers.csv --input-root-seq $NCLADE_REF/root.fasta --input-tree $NCLADE_REF/tree.json --input-qc-config $NCLADE_REF/qc.json --input-gene-map $NCLADE_REF/genemap.gff 2>&1 | tee -a "${LOGFOLDER}nextclade.log"
+    #Clean-up outputs
+    mv allsequences.gene* proteins/ 
     mv nextclade* intermediates/
+    mv allsequences*.csv intermediates/
     
     printf "\n###### ${GREEN} Determining PANGO lineages ${NC} ######\n\n"
     change_conda pangolin
@@ -584,43 +581,30 @@ if [ $S8 = 1 ] ; then
     printf "Removing prior QC run details:\n"
     rm -rvf $QCDIR/*
     
-    printf "\nGenerating config.yaml file\n"
+    printf "Generating Metadata.tsv file\n"
+    METADATAFN="Metadata.tsv"
     SEQIDCOL="$(GETCOLMID "," "SeqID" "$SAMPLEFILE")"
     CTCOL="$(GETCOLMID "," "Ctvalue" "$SAMPLEFILE")"
     SEQRUNCOL="$(GETCOLMID "," "SeqRun" "$SAMPLEFILE")"
-    METADATAFN=Metadata.tsv
     awk -F"," -v i=$SEQRUNCOL -v k=$SEQIDCOL -v l=$CTCOL 'NR==1 {print "sample","ct"} $i ~ /'$RUNNAME'/ {print$k,$l}' OFS='\t' $SAMPLEFILE > $METADATAFN
-    NTCLIST1=`awk -F"\t" '{print$1}' Metadata.tsv | grep NTC | sed -e 's/^/\\"/' | sed -e 's/$/\\"/' | awk -vORS=, '{print$1}'`
-    NTCLIST=() #declare as an empty variable
-    #ncov-tools can't deal with NTC that has no related bam file therefore if no bam remove from the list
-    for NTC in "${NTCLIST1[@]}" ; do
-        N=`echo $NTC | sed 's/"//g' | sed 's/,//g'`
-        printf "N = $N\n"
-        NTCDIR="${BASEFOLDER}/3_Artic_Output/$RUNNAME/processed/$N"
-        printf "NTCDIR = $NTCDIR\n"
-        if [ ! -d $NTCDIR ] ; then
-            printf "Missing NTC directory for $N. Dropping from analysis\n"
-        else
-            NTCLIST+=($NTC)
-        fi
-    done
-    
-    YAMLFN="config.yaml"
-    printf "Generating Metadata.tsv file\n"
+    NTCLIST=`awk -F"\t" '{print$1}' $METADATAFN | grep NTC | sed -e 's/^/\\"/' | sed -e 's/$/\\"/' | awk -vORS=, '{print$1}'`
+
+    printf "\nGenerating config.yaml file\n"
     printf "data_root: $BASEFOLDER/3_Artic_Output/$RUNNAME/processed
 run_name: $RUNNAME
-reference_genome: ${PRIMERDIR}/${PRIMERSCHEME}/SARS-CoV-2.reference.fasta
+reference_genome: ${REFDIR}/primer-schemes/${PRIMERSCHEME}/SARS-CoV-2.reference.fasta
 platform: oxford-nanopore
-primer_bed: ${PRIMERDIR}/${PRIMERSCHEME}/SARS-CoV-2.bed
+primer_bed: ${REFDIR}/primer-schemes/${PRIMERSCHEME}/SARS-CoV-2.bed
 bam_pattern: \"{data_root}/{sample}/{sample}.sorted.bam\"
 consensus_pattern: \"{data_root}/{sample}/{sample}.consensus.fasta\"
 variants_pattern: \"{data_root}/{sample}/{sample}.pass.vcf.gz\"
 skip_empty_negatives: true
 metadata: \"$METADATAFN\"
-negative_control_samples: [ $NTCLIST ]\n" > $YAMLFN
-    
+negative_control_samples: [ $NTCLIST ]\n" > "config.yaml"
+
     printf "Running snakemake report\n"
     snakemake --cores all -s ~/git/ncov-tools/workflow/Snakefile all_final_report
+    
 else
     printf "###### ${GREEN}Step 8: Skipping generation of QC stats${NC} ######\n\n"
 fi
