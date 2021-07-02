@@ -9,8 +9,7 @@ set -e #exit whenever a command exits with a non zero status
 set -u #treat undefined variables as errors
 set -o pipefail #pipe will be considered successful if all the commands are executed without errors
 
-VERSION="0.8.1"
-# VERDATE="2021-06-20"
+VERSION="0.9"
 #ANSI escape codes: 
 #Black        0;30     Dark Gray     1;30
 #Red          0;31     Light Red     1;31
@@ -62,8 +61,7 @@ function Help {
     -4      Omit Step 4 (Consensus sequences)
     -5      Omit Step 5 (Sequencing statistics)
     -6      Omit Step 6 (Generate JSON file for RAMPART)
-    -7      Omit Step 7 (All sequences and filtered list of sequences)
-    -8      Omit Step 8 (ncov-tools QC pipeline)
+    -8      Omit Step 7 (ncov-tools QC pipeline)
    "
 }
 
@@ -117,7 +115,7 @@ function change_conda {
 }
 
 #==============Recognise any CLI options==================
-while getopts 'vhp:b:r:s:m12345678' opt; do
+while getopts 'vhp:b:r:s:m1234567' opt; do
   case "$opt" in
     v)
       printf "${ORANGE}ArticProcess.sh Version $VERSION, $VERDATE ${NC}\n"
@@ -160,9 +158,6 @@ while getopts 'vhp:b:r:s:m12345678' opt; do
     7)
       S7=0
       ;;
-    8)
-      S8=0
-      ;;
     r)
       RUNNAME=$OPTARG
       ;;
@@ -201,7 +196,6 @@ S4=${S4:- 1}
 S5=${S5:- 1}
 S6=${S6:- 1}
 S7=${S7:- 1}
-S8=${S8:- 1}
 MEDAKA=${MEDAKA:- 0}            # 3
 REFDIR=${REFDIR:- 1}      # 3
 PRIMERS=${PRIMERS:- 1}          # 2, 3
@@ -228,7 +222,7 @@ if [ $S2 = 1 ] || [ $S3 = 1 ]; then
     check_package "artic" "artic" "artic"
 fi
 
-if [ $S2 = 1 ] || [ $S3 = 1 ] || [ $S8 = 1 ]; then
+if [ $S2 = 1 ] || [ $S3 = 1 ] || [ $S7 = 1 ]; then
     #Check primers and determine max and min sizes and primer scheme for analysis
     check_var $PRIMERS "-p (primers)"
     if [ $PRIMERS = "Sanger" ] ; then
@@ -250,7 +244,7 @@ if [ $S2 = 1 ] || [ $S3 = 1 ] || [ $S8 = 1 ]; then
     fi
 fi
 
-if [ $S3 = 1 ] || [ $S5 = 1 ] || [ $S8 = 1 ]; then
+if [ $S3 = 1 ] || [ $S5 = 1 ] || [ $S7 = 1 ]; then
     #Check primer scheme supplied
     check_var $REFDIR "-s (reference directory)"
     REFDIR=`realpath $REFDIR`
@@ -263,7 +257,7 @@ if [ $S3 = 1 ] ; then
     check_var ${SEQUENCINGSUMMARY:- 1} "Sequencing Summary"
 fi
 
-if [ $S3 = 1 ] || [ $S6 = 1 ] || [ $S8 = 1 ] ; then
+if [ $S3 = 1 ] || [ $S6 = 1 ] || [ $S7 = 1 ] ; then
     #Identify csv file
     SAMPLEFILE="$BASEFOLDER/2_SampleList_and_Rampart/Samples_Sequenced.csv"
     present $SAMPLEFILE "f"
@@ -516,6 +510,65 @@ else
 fi
 
 if [ $S7 = 1 ] ; then
+    printf "###### ${BLUE}Step 7: Running ncov-tools QC pipeline${NC} ######\n\n"
+    change_conda "ncov-qc"
+    check_package "snakemake" "ncov-tools environment" "ncov-qc"
+    QCDIR="$BASEFOLDER/6_QCAnalysis/$RUNNAME"
+    check_mkdir $QCDIR
+       
+    cd "$BASEFOLDER/6_QCAnalysis/$RUNNAME"
+    
+    printf "Removing prior QC run details:\n"
+    rm -rvf $QCDIR/*
+    
+    printf "Generating Metadata.tsv file\n"
+    METADATAFN="Metadata.tsv"
+    SEQIDCOL="$(GETCOLMID "," "SeqID" "$SAMPLEFILE")"
+    CTCOL="$(GETCOLMID "," "Ctvalue" "$SAMPLEFILE")"
+    SEQRUNCOL="$(GETCOLMID "," "SeqRun" "$SAMPLEFILE")"
+    awk -F"," -v i=$SEQRUNCOL -v k=$SEQIDCOL -v l=$CTCOL 'NR==1 {print "sample","ct"} $i ~ /'$RUNNAME'/ {print$k,$l}' OFS='\t' $SAMPLEFILE > $METADATAFN
+    NTCLIST=`awk -F"\t" '{print$1}' $METADATAFN | grep NTC | sed -e 's/^/\\"/' | sed -e 's/$/\\"/' | awk -vORS=, '{print$1}'`
+
+    printf "\nGenerating config.yaml file\n"
+    printf "data_root: $BASEFOLDER/3_Artic_Output/$RUNNAME/processed
+run_name: $RUNNAME
+reference_genome: ${REFDIR}/primer-schemes/${PRIMERSCHEME}/SARS-CoV-2.reference.fasta
+platform: oxford-nanopore
+primer_bed: ${REFDIR}/primer-schemes/${PRIMERSCHEME}/SARS-CoV-2.bed
+bam_pattern: \"{data_root}/{sample}/{sample}.sorted.bam\"
+consensus_pattern: \"{data_root}/{sample}/{sample}.consensus.fasta\"
+variants_pattern: \"{data_root}/{sample}/{sample}.pass.vcf.gz\"
+skip_empty_negatives: true
+metadata: \"$METADATAFN\"
+negative_control_samples: [ $NTCLIST ]\n" > "config.yaml"
+
+    printf "Running snakemake report\n"
+    snakemake --cores all -s ~/git/ncov-tools/workflow/Snakefile all_final_report
+    
+else
+    printf "###### ${GREEN}Step 7: Skipping generation of QC stats${NC} ######\n\n"
+fi
+exit
+
+
+
+
+
+
+
+
+
+
+
+
+#################
+#ARCHIVE STEPS - Keeping here for easier reference
+
+
+
+
+
+if [ $S7 = 1 ] ; then
     printf "\n###### ${BLUE}Step 7: Generate filtered fasta file of submittable entries. ${NC} ######\n\n"
     
     cd "$BASEFOLDER/5_GISAID"
@@ -569,44 +622,3 @@ else
     printf "###### ${GREEN}Step 7: Skipping generation of filtered fasta file${NC} ######\n\n"
 
 fi
-
-if [ $S8 = 1 ] ; then
-    printf "###### ${BLUE}Step 8: Running ncov-tools QC pipeline${NC} ######\n\n"
-    change_conda "ncov-qc"
-    check_package "snakemake" "ncov-tools environment" "ncov-qc"
-    QCDIR="$BASEFOLDER/6_QCAnalysis/$RUNNAME"
-    check_mkdir $QCDIR
-       
-    cd "$BASEFOLDER/6_QCAnalysis/$RUNNAME"
-    
-    printf "Removing prior QC run details:\n"
-    rm -rvf $QCDIR/*
-    
-    printf "Generating Metadata.tsv file\n"
-    METADATAFN="Metadata.tsv"
-    SEQIDCOL="$(GETCOLMID "," "SeqID" "$SAMPLEFILE")"
-    CTCOL="$(GETCOLMID "," "Ctvalue" "$SAMPLEFILE")"
-    SEQRUNCOL="$(GETCOLMID "," "SeqRun" "$SAMPLEFILE")"
-    awk -F"," -v i=$SEQRUNCOL -v k=$SEQIDCOL -v l=$CTCOL 'NR==1 {print "sample","ct"} $i ~ /'$RUNNAME'/ {print$k,$l}' OFS='\t' $SAMPLEFILE > $METADATAFN
-    NTCLIST=`awk -F"\t" '{print$1}' $METADATAFN | grep NTC | sed -e 's/^/\\"/' | sed -e 's/$/\\"/' | awk -vORS=, '{print$1}'`
-
-    printf "\nGenerating config.yaml file\n"
-    printf "data_root: $BASEFOLDER/3_Artic_Output/$RUNNAME/processed
-run_name: $RUNNAME
-reference_genome: ${REFDIR}/primer-schemes/${PRIMERSCHEME}/SARS-CoV-2.reference.fasta
-platform: oxford-nanopore
-primer_bed: ${REFDIR}/primer-schemes/${PRIMERSCHEME}/SARS-CoV-2.bed
-bam_pattern: \"{data_root}/{sample}/{sample}.sorted.bam\"
-consensus_pattern: \"{data_root}/{sample}/{sample}.consensus.fasta\"
-variants_pattern: \"{data_root}/{sample}/{sample}.pass.vcf.gz\"
-skip_empty_negatives: true
-metadata: \"$METADATAFN\"
-negative_control_samples: [ $NTCLIST ]\n" > "config.yaml"
-
-    printf "Running snakemake report\n"
-    snakemake --cores all -s ~/git/ncov-tools/workflow/Snakefile all_final_report
-    
-else
-    printf "###### ${GREEN}Step 8: Skipping generation of QC stats${NC} ######\n\n"
-fi
-exit
