@@ -254,6 +254,7 @@ if [ $S3 = 1 ] || [ $S5 = 1 ] || [ $S8 = 1 ]; then
     #Check primer scheme supplied
     check_var $REFDIR "-s (reference directory)"
     REFDIR=`realpath $REFDIR`
+    present $REFDIR "d"
 fi
 
 
