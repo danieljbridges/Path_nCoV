@@ -309,7 +309,7 @@ alldata_df = alldata_df.fillna({'Submittable' : False})
 #WRITE RESULTS
 print("Writing all sequencing data...")
 output_fn = "allsequencedata.csv"
-alldata_df.to_csv(os.path.join(gisaid_dir, output_fn), sep = '\t', index=False)
+alldata_df.to_csv(os.path.join(gisaid_dir, output_fn), sep = ',', index=False)
 print("  To: %s" % os.path.join(gisaid_dir, output_fn))
 print("Done.")
 print("")
@@ -426,7 +426,7 @@ print("Done")
 #WRITE RESULTS
 print("  Writing out gisaid submission file (all sequences ready for submission)...")
 output_fn = "GISAID_Submission_Data.csv"
-gisaid_df.to_csv(os.path.join(data_dir, output_fn), sep = '\t', index=False)
+gisaid_df.to_csv(os.path.join(data_dir, output_fn), sep = ',', index=False)
 print("  To: %s" % os.path.join(data_dir, output_fn))
 print("Done.")
 print("")
@@ -497,7 +497,6 @@ print("  Done")
 print("  Writing results...")
 runsummary_fn = "runsummary.csv"
 runsummary_df.to_csv(os.path.join(gisaid_dir, runsummary_fn), index=True)
-#df.to_csv('Students.csv', sep ='\t')
 print("  To: %s" % os.path.join(gisaid_dir, runsummary_fn))
 print("Done.")
 print("")
