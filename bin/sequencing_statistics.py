@@ -241,7 +241,7 @@ Merge2 = pd.merge(Merge1, nextclade_df, how='outer', left_on='SeqID', right_on='
 print("  Total remaining records = %d" % (Merge2.shape[0]))
 print("  Removing unwanted column headings from final summary file of samples sequenced")
 gisaidcols = ['ref_genome_length']
-pangocols = (['pangoLEARN_version','taxon'])
+pangocols = (['taxon'])
 nextcladecols = ['seqName']
 dropcols = gisaidcols + pangocols + nextcladecols
 sequenced_df = Merge2.drop(dropcols, axis=1)
@@ -249,6 +249,7 @@ print("Done.")
 print("")
 
 # MERGE WITH SAMPLE LIST
+print("-" * 80)
 print("Merging sequenced samples with sample list...")
 print("  No. samples...")
 print("    ...in sample list: %d" % seqsamples_df.shape[0])
@@ -265,7 +266,8 @@ print("")
 qc_depth = 50
 qc_breadth = 50
 
-print("Removing controls, unsequenced samples, those marked for exclusion or failing qc parameters")
+print("-" * 80)
+print("Isolating submittable samples from controls, unsequenced samples, those marked for exclusion or failing qc parameters")
 keepers_df = merged_df.query("sequencing_depth_avg >= @qc_depth" +
                              "& coverage_breadth >= @qc_breadth" +
                              "& ExcludeSample != 'Y'" +
@@ -276,7 +278,7 @@ print("Done")
 print("")
 
 #Highlight duplicates
-print("Highlighting highest depth for duplicate samples...")
+print("Identifying highest depth concensus where samples have been sequenced multiple times:")
 
 l_dfs = []
 print("  {:<8}  {:<8}  {:<10}  {:<4}".format("Sample", "No. dup.", "Keep", "Depth"))
@@ -292,11 +294,12 @@ for n, sdf in keepers_df.groupby("SampleID"):
         keep = sdf.iloc[0]
     l_dfs.append(keep)
 keepers_df = pd.concat(l_dfs, 1).transpose()
-print("  Submittable samples: %d" % keepers_df.shape[0])
+print("")
+print("  Total Submittable samples: %d" % keepers_df.shape[0])
 print("Done.")
 print("")
 
-print("Highlighting submittable samples")
+print("Marking submittable samples in df")
 keeperslist_df = keepers_df.filter(['SeqID','SeqRun','SeqBarcode'])
 keeperslist_df["Submittable"] = True
 alldata_df = pd.merge(left=merged_df,
@@ -424,9 +427,22 @@ gisaid_df["comment_type"] =""
 print("Done")
 
 #WRITE RESULTS
-print("  Writing out gisaid submission file (all sequences ready for submission)...")
+print("  Writing out gisaid metadata submission file for all submittable sequences...")
 output_fn = "GISAID_Submission_Data.csv"
 gisaid_df.to_csv(os.path.join(data_dir, output_fn), sep = ',', index=False)
+print("  To: %s" % os.path.join(data_dir, output_fn))
+print("Done.")
+print("")
+
+#Combine dfs and drop all unnecessary columns
+samplemeta_df = samplemeta_df[['SampleID','SeqID']]
+gisaid_df = gisaid_df[['covv_virus_name','covv_subm_sample_id']]
+translate_df = pd.merge(samplemeta_df, gisaid_df, how='inner', left_on='SampleID', right_on='covv_subm_sample_id')
+translate_df = translate_df.drop(columns='covv_subm_sample_id')
+
+print("  Writing out translation file for filtering fasta and replacing SeqID with virus name")
+output_fn = "GISAID_Translate.csv"
+translate_df.to_csv(os.path.join(data_dir, output_fn), sep = ',', index=False)
 print("  To: %s" % os.path.join(data_dir, output_fn))
 print("Done.")
 print("")
