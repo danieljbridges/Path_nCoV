@@ -305,7 +305,6 @@ alldata_df = pd.merge(left=merged_df,
                      right_on=["SeqRun", "SeqBarcode", "SeqID"],
                     how='outer')
 alldata_df = alldata_df.fillna({'Submittable' : False})
-#alldata_df = alldata_df.drop('ExcludeSample', axis=1)
 
 #WRITE RESULTS
 print("Writing all sequencing data...")
@@ -344,8 +343,6 @@ samplemeta_df = pd.merge(left=metadata_df,
 print("Done")
 print("  Total samples retained: %d" % keepers_df.shape[0])
 
-#Drop uninformative columns
-samplemeta_df.drop(columns = ['Type','ExcludeSample'], inplace = True)
 #Change date fields from str to date
 samplemeta_df['SeqDate'] = pd.to_datetime(samplemeta_df['SeqDate'], format='%d/%m/%Y')
 samplemeta_df['SpecimenDate'] = pd.to_datetime(samplemeta_df['SpecimenDate'], format='%d/%m/%Y')
