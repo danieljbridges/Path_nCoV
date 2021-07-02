@@ -305,7 +305,7 @@ alldata_df = pd.merge(left=merged_df,
                      right_on=["SeqRun", "SeqBarcode", "SeqID"],
                     how='outer')
 alldata_df = alldata_df.fillna({'Submittable' : False})
-alldata_df = alldata_df.drop('ExcludeSample', axis=1)
+#alldata_df = alldata_df.drop('ExcludeSample', axis=1)
 
 #WRITE RESULTS
 print("Writing all sequencing data...")
@@ -361,7 +361,7 @@ print("")
 #WRITE RESULTS
 print("  Writing out all sequence data with metadata...")
 output_fn = "Samples_Sequenced_With_Metadata.csv"
-samplemeta_df.to_csv(os.path.join(data_dir, output_fn), sep = '\t', index=False)
+samplemeta_df.to_csv(os.path.join(data_dir, output_fn), sep = ',', index=False)
 print("  To: %s" % os.path.join(data_dir, output_fn))
 print("Done.")
 print("")
@@ -407,7 +407,7 @@ gisaid_df["covv_host"] = "Human"
 gisaid_df["covv_add_host_info"] = ""
 gisaid_df["covv_gender"] = samplemeta_df['Sex']
 gisaid_df["covv_patient_age"] = samplemeta_df['Age']
-gisaid_df["covv_patient_status"] = samplemeta_df['PatientStatus']
+gisaid_df["covv_patient_status"] = ""
 gisaid_df["covv_specimen"] = "Nasopharyngeal swab"
 gisaid_df["covv_outbreak"] = ""
 gisaid_df["covv_last_vaccinated"] = ""
@@ -421,7 +421,7 @@ gisaid_df["covv_provider_sample_id"] = ""
 gisaid_df["covv_subm_lab"] = "UNZAVET and PATH"
 gisaid_df["covv_subm_lab_addr"] = "University of Zambia, School of Veterinary Medicine, Gt East Road Campus, Lusaka, Zambia"
 gisaid_df["covv_subm_sample_id"] = samplemeta_df["SampleID"]
-gisaid_df["covv_authors"] = "Mulenga Mwenda-Chimfwembe, Ngonda Saasa, Daniel Bridges and ZGSC"
+gisaid_df["covv_authors"] = "Mulenga Mwenda-Chimfwembe, Ngonda Saasa, Daniel Bridges, ZNPHI and ZGSC"
 gisaid_df["covv_comment"] = ""
 gisaid_df["comment_type"] =""
 print("Done")
