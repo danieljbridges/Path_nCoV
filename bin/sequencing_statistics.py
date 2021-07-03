@@ -17,6 +17,7 @@ import datetime
 import getopt
 import pandas as pd
 import numpy as np
+from Bio import SeqIO
 from gisaid import *
 
 
@@ -373,17 +374,23 @@ print("%d samples identified" % samplemeta_df.shape[0])
 #Drop all entries without a date
 samplemeta_df.query("SpecimenDate > datetime.datetime(2000,1,1)",inplace = True)
 print("   %d samples with a date" % samplemeta_df.shape[0])
-#Drop all entries previously submitted
+#Drop all entries previously submittedprint(l)
 samplemeta_df.query("GISAID_Accession_Number != GISAID_Accession_Number",inplace = True)
 print("   %d samples without an accession number" % samplemeta_df.shape[0])
-
+#Drop all entries without a location
+samplemeta_df.dropna(axis=0, subset=['Province'], inplace=True)
+print("   %d samples with a location" % samplemeta_df.shape[0])
 #Pull out the year
 samplemeta_df["Year"] = samplemeta_df['SpecimenDate'].dt.year.astype('Int64')
+
+#Reset the index
+samplemeta_df.reset_index(inplace=True, drop=True)
 #Generate a Province / District location
 l = []
 for _, row in samplemeta_df[['Province','District']].iterrows():
     l.append(pd.Series(row).str.cat(sep='/'))
 samplemeta_df["Location"] = pd.DataFrame(l)
+
 #Fill in NA entries and replace keys with correct values
 samplemeta_df['Sex'].fillna(value="Unknown", inplace=True)
 samplemeta_df['Sex'].replace({"M":"Male","F":"Female"}, inplace = True)
@@ -396,7 +403,7 @@ samplemeta_df.reset_index(inplace=True, drop=True)
 gisaid_df = pd.DataFrame(index=np.arange(samplemeta_df.shape[0]), columns=np.arange(0))
 # pd.DataFrame(index=np.arange(1), columns=np.arange(8))
 gisaid_df["submitter"] = "djbridges"
-gisaid_df["fn"] = "Metadata.xls"
+gisaid_df["fn"] = "GISAID_Submission_Data.csv"
 gisaid_df["covv_virus_name"] = "hCoV-19/Zambia/ZMB-"+ samplemeta_df['SampleID'].astype('str') + "/" + samplemeta_df['Year'].astype('str')
 gisaid_df["covv_type"] = "betacoronavirus"
 gisaid_df["covv_passage"] = "Original"
@@ -417,10 +424,10 @@ gisaid_df["covv_assembly_method"] = "ARTIC Field Workflow"
 gisaid_df["covv_coverage"] = samplemeta_df['sequencing_depth_avg'].astype('int')
 gisaid_df["covv_orig_lab"] = "University of Zambia, School of Veterinary Medicine"
 gisaid_df["covv_orig_lab_addr"] = "University of Zambia, School of Veterinary Medicine, Gt East Road Campus, Lusaka, Zambia"
-gisaid_df["covv_provider_sample_id"] = ""
+gisaid_df["covv_provider_sample_id"] = samplemeta_df["SampleID"]
 gisaid_df["covv_subm_lab"] = "UNZAVET and PATH"
 gisaid_df["covv_subm_lab_addr"] = "University of Zambia, School of Veterinary Medicine, Gt East Road Campus, Lusaka, Zambia"
-gisaid_df["covv_subm_sample_id"] = samplemeta_df["SampleID"]
+gisaid_df["covv_subm_sample_id"] = samplemeta_df["SeqID"]
 gisaid_df["covv_authors"] = "Mulenga Mwenda-Chimfwembe, Ngonda Saasa, Daniel Bridges, ZNPHI and ZGSC"
 gisaid_df["covv_comment"] = ""
 gisaid_df["comment_type"] =""
@@ -444,6 +451,36 @@ print("  Writing out translation file for filtering fasta and replacing SeqID wi
 output_fn = "GISAID_Translate.csv"
 translate_df.to_csv(os.path.join(data_dir, output_fn), sep = ',', index=False)
 print("  To: %s" % os.path.join(data_dir, output_fn))
+print("Done.")
+print("")
+
+print("  Generating filtered fasta file for GISAID submission")
+#Generate a dictionary of translationn terms
+translate_dict = translate_df.set_index('SeqID').to_dict(orient='index')
+#Set-up variables
+count = 0
+include = 0
+retain = []
+fasta_fn = "allsequences.fasta"
+
+for record in SeqIO.parse(os.path.join(gisaid_dir, fasta_fn), "fasta"):
+    count += 1
+    if translate_dict.get(record.name): #If record.name is in the dictionary
+        #Pull out virus name given
+        vname = translate_dict.get(record.name).get('covv_virus_name')
+        #Update the record id and description otherwise if not the same they are concat in fasta header
+        record.id = vname
+        record.description = vname
+        #Add to list for export
+        retain.append(record)
+        include += 1
+        
+print("  %d sequences identified" % count)
+print("    %d sequences retained" % include)
+#Output files
+allseqs_fn = "GISAID_Submission.fasta"
+SeqIO.write(retain, os.path.join(data_dir,allseqs_fn), "fasta")
+print("All %d sequences output to %s" % (len(retain),allseqs_fn))
 print("Done.")
 print("")
 
