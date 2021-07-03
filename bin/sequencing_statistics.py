@@ -402,33 +402,35 @@ samplemeta_df.reset_index(inplace=True, drop=True)
 #Create an empty dataframe with length of samplemeta_df
 gisaid_df = pd.DataFrame(index=np.arange(samplemeta_df.shape[0]), columns=np.arange(0))
 # pd.DataFrame(index=np.arange(1), columns=np.arange(8))
-gisaid_df["Submitter"] = "djbridges"
-gisaid_df["FASTA filename"] = "GISAID_Submission_Data.csv"
-gisaid_df["Virus name"] = "hCoV-19/Zambia/ZMB-"+ samplemeta_df['SampleID'].astype('str') + "/" + samplemeta_df['Year'].astype('str')
-gisaid_df["Type"] = "betacoronavirus"
-gisaid_df["Passage details/history"] = "Original"
-gisaid_df["Collection Date"] = samplemeta_df['SpecimenDate']
-gisaid_df["Location"] = "Africa/Zambia/" + samplemeta_df['Location']
-gisaid_df["Additional location information"] = ""
-gisaid_df["Host"] = "Human"
-gisaid_df["Additional host information"] = ""
-gisaid_df["Gender"] = samplemeta_df['Sex']
-gisaid_df["Age"] = samplemeta_df['Age']
-gisaid_df["Patient status"] = ""
-gisaid_df["Specimen source"] = "Nasopharyngeal swab"
-gisaid_df["Outbreak"] = ""
-gisaid_df["Last vaccinated"] = ""
-gisaid_df["Treatment"] = ""
-gisaid_df["Sequencing technology"] = "Nanopore MinION"
-gisaid_df["Assembly method"] = "ARTIC Field Workflow"
-gisaid_df["Coverage"] = samplemeta_df['sequencing_depth_avg'].astype('int')
-gisaid_df["Originating lab"] = "University of Zambia, School of Veterinary Medicine"
-gisaid_df["Address"] = "University of Zambia, School of Veterinary Medicine, Gt East Road Campus, Lusaka, Zambia"
-gisaid_df["Sample ID given by the sample provider"] = samplemeta_df["SeqID"]
-gisaid_df["Submitting lab"] = "UNZAVET and PATH"
-#gisaid_df["covv_subm_lab_addr"] = "University of Zambia, School of Veterinary Medicine, Gt East Road Campus, Lusaka, Zambia"
-gisaid_df["Sample ID given by the submitting laboratory"] = samplemeta_df["SampleID"]
-gisaid_df["Authors"] = "Mulenga Mwenda-Chimfwembe, Ngonda Saasa, Daniel Bridges, ZNPHI and ZGSC"
+gisaid_df["submitter"] = "djbridges"
+gisaid_df["fn"] = "GISAID_Submission_Data.csv"
+gisaid_df["covv_virus_name"] = "hCoV-19/Zambia/ZMB-"+ samplemeta_df['SampleID'].astype('str') + "/" + samplemeta_df['Year'].astype('str')
+gisaid_df["covv_type"] = "betacoronavirus"
+gisaid_df["covv_passage"] = "Original"
+gisaid_df["covv_collection_date"] = samplemeta_df['SpecimenDate']
+gisaid_df["covv_location"] = "Africa/Zambia/" + samplemeta_df['Location']
+gisaid_df["covv_add_location"] = ""
+gisaid_df["covv_host"] = "Human"
+gisaid_df["covv_add_host_info"] = ""
+gisaid_df["covv_gender"] = samplemeta_df['Sex']
+gisaid_df["covv_patient_age"] = samplemeta_df['Age']
+gisaid_df["covv_patient_status"] = ""
+gisaid_df["covv_specimen"] = "Nasopharyngeal swab"
+gisaid_df["covv_outbreak"] = ""
+gisaid_df["covv_last_vaccinated"] = ""
+gisaid_df["covv_treatment"] = ""
+gisaid_df["covv_seq_technology"] = "Nanopore MinION"
+gisaid_df["covv_assembly_method"] = "ARTIC Field Workflow"
+gisaid_df["covv_coverage"] = samplemeta_df['sequencing_depth_avg'].astype('int')
+gisaid_df["covv_orig_lab"] = "University of Zambia, School of Veterinary Medicine"
+gisaid_df["covv_orig_lab_addr"] = "University of Zambia, School of Veterinary Medicine, Gt East Road Campus, Lusaka, Zambia"
+gisaid_df["covv_provider_sample_id"] = samplemeta_df["SeqID"]
+gisaid_df["covv_subm_lab"] = "UNZAVET and PATH"
+gisaid_df["covv_subm_lab_addr"] = "University of Zambia, School of Veterinary Medicine, Gt East Road Campus, Lusaka, Zambia"
+gisaid_df["covv_subm_sample_id"] = samplemeta_df["SampleID"]
+gisaid_df["covv_authors"] = "Mulenga Mwenda-Chimfwembe, Ngonda Saasa, Daniel Bridges, ZNPHI and ZGSC"
+gisaid_df["covv_comment"] = ""
+gisaid_df["comment_type"] =""
 print("Done")
 
 #WRITE RESULTS
@@ -441,9 +443,9 @@ print("")
 
 #Combine dfs and drop all unnecessary columns
 samplemeta_df = samplemeta_df[['SampleID','SeqID']]
-gisaid_df = gisaid_df[['Virus name','Sample ID given by the submitting laboratory']]
-translate_df = pd.merge(samplemeta_df, gisaid_df, how='inner', left_on='SampleID', right_on='Sample ID given by the submitting laboratory')
-translate_df = translate_df.drop(columns='Sample ID given by the submitting laboratory')
+gisaid_df = gisaid_df[['covv_virus_name','covv_subm_sample_id']]
+translate_df = pd.merge(samplemeta_df, gisaid_df, how='inner', left_on='SampleID', right_on='covv_subm_sample_id')
+translate_df = translate_df.drop(columns='covv_subm_sample_id')
 
 print("  Writing out translation file for filtering fasta and replacing SeqID with virus name")
 output_fn = "GISAID_Translate.csv"
