@@ -61,8 +61,7 @@ function Help {
     -4      Omit Step 4 (Consensus sequences)
     -5      Omit Step 5 (Sequencing statistics)
     -6      Omit Step 6 (Generate JSON file for RAMPART)
-    -8      Omit Step 7 (ncov-tools QC pipeline)
-   "
+    -7      Omit Step 7 (ncov-tools QC pipeline)\n"
 }
 
 function present {
@@ -340,8 +339,8 @@ if [ $S2 = 1 ] ; then
     
     #Run through the demuxed barcodes to combine into single fastq files
     for S2DIR in "${S2DIRS[@]}" ; do
-        printf "${LG}artic guppyplex --skip-quality-check --min-length $MIN --max-length $MAX --directory $S2DIR --prefix $RUNNAME ${NC}\n" | tee -a "${RUNLOG}2.log"
-       artic guppyplex --skip-quality-check --min-length $MIN --max-length $MAX --directory $S2DIR --prefix $RUNNAME | tee -a "${RUNLOG}2.log"
+        printf "${LG}artic guppyplex --min-length $MIN --max-length $MAX --directory $S2DIR --prefix $RUNNAME ${NC}\n" | tee -a "${RUNLOG}2.log" #--skip-quality-check
+       artic guppyplex --min-length $MIN --max-length $MAX --directory $S2DIR --prefix $RUNNAME | tee -a "${RUNLOG}2.log"
     done
     echo -e "\n###### ${GREEN}Step 2: guppyplex completed. ${NC} ######\n\n"
 else
