@@ -227,15 +227,15 @@ if [ $S2 = 1 ] || [ $S3 = 1 ] || [ $S7 = 1 ]; then
     if [ $PRIMERS = "Sanger" ] ; then
         MAX=1250
         MIN=750
-        PRIMERSCHEME=V1
+        PRIMERSCHEME=SARS-CoV-2/V1
     elif [ $PRIMERS = "Artic" ] ; then
         MAX=700
         MIN=400
-        PRIMERSCHEME=V3
+        PRIMERSCHEME=SARS-CoV-2/V3
     elif [ $PRIMERS = "Midnight" ] ; then
         MAX=950
         MIN=1450
-        PRIMERSCHEME=V2
+        PRIMERSCHEME=SARS-CoV-2/V2
     else
         Help
         printf "${RED}ERROR:${NC} Unrecognised primer scheme\n\n"
