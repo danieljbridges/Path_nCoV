@@ -9,7 +9,7 @@ set -e #exit whenever a command exits with a non zero status
 set -u #treat undefined variables as errors
 set -o pipefail #pipe will be considered successful if all the commands are executed without errors
 
-VERSION="0.9"
+VERSION="1.0"
 #ANSI escape codes: 
 #Black        0;30     Dark Gray     1;30
 #Red          0;31     Light Red     1;31
@@ -135,6 +135,7 @@ while getopts 'vhp:b:r:s:m1234567' opt; do
       ;;
     m)
       MEDAKA=1
+      MEDAKAMODEL="r941_min_high_g303"
       ;;
     1)
       S1=0
@@ -203,9 +204,18 @@ RAWDATADIR="$BASEFOLDER/1_Raw/$RUNNAME"
 
 #################################################
 #Make directories for the demultiplexed, combined and size selected fast_q files
-check_mkdir "$ARTIC_OUT/fastq"
-check_mkdir "$ARTIC_OUT/processed"
-present $RAWDATADIR "d"
+
+#These are folders that are absolutely required
+DIRS_REQ=("$RAWDATADIR" "$BASEFOLDER/2_SampleList_and_Rampart")
+for DIR_REQ in "${DIRS_REQ[@]}" ; do
+    present $DIR_REQ "d"
+done
+
+#These folders may only be created during the run
+DIRS_ADD=("$ARTIC_OUT/fastq" "$ARTIC_OUT/processed" "$BASEFOLDER/4_Consensus" "$BASEFOLDER/5_GISAID") 
+for DIR_ADD in "${DIRS_ADD[@]}" ; do
+    check_mkdir $DIR_ADD
+done
 
 ALLSEQ="allsequences.fasta" #Name of file for all sequences to output to
 
@@ -249,7 +259,6 @@ if [ $S3 = 1 ] || [ $S5 = 1 ] || [ $S7 = 1 ]; then
     REFDIR=`realpath $REFDIR`
     present $REFDIR "d"
 fi
-
 
 if [ $S3 = 1 ] ; then
     SEQUENCINGSUMMARY=$(find $RAWDATADIR -name 'sequencing_summary*' -not -name '*.tmp')
@@ -379,10 +388,9 @@ if [ $S3 = 1 ] ; then
             if [ $FASTQLENGTH -gt 1 ] ; then
                 #Run processing scheme
                 if [ $MEDAKA = 1 ] ; then
-                    printf "\n${GREEN}Using Medaka pipeline${NC}\n"
-                    printf "${LG}artic minion --medaka --normalise 200 --threads 24 --scheme-directory $REFDIR/primer-schemes/ --read-file $FILE $PRIMERSCHEME $SAMPLENAME ${NC}\n" | tee -a "${RUNLOG}3.log"
-                    artic minion --medaka --normalise 200 --threads 24 --scheme-directory $REFDIR/primer-schemes/ --read-file $FILE $PRIMERSCHEME $SAMPLENAME 2>&1 | tee -a "${RUNLOG}3.log"
-                    # 2>&1 redirects stderr to stdout
+                    printf "\n${GREEN}Using Medaka pipeline, with the Medaka Model $MEDAKAMODEL ${NC}\n"
+                    printf "${LG}artic minion --medaka --medaka-model $MEDAKAMODEL --normalise 200 --threads 24 --scheme-directory $REFDIR/primer-schemes/ --read-file $FILE $PRIMERSCHEME $SAMPLENAME ${NC}\n" | tee -a "${RUNLOG}3.log"
+                    artic minion --medaka --medaka-model $MEDAKAMODEL --normalise 200 --threads 24 --scheme-directory $REFDIR/primer-schemes/ --read-file $FILE $PRIMERSCHEME $SAMPLENAME 2>&1 | tee -a "${RUNLOG}3.log"
                 else
                     printf "\n${GREEN}Using Nanopolish pipeline${NC}\n"
                     printf "${LG}artic minion --normalise 200 --threads 24 --scheme-directory $REFDIR/primer-schemes/ --read-file $FILE --fast5-directory $RAWDATADIR --sequencing-summary $SEQUENCINGSUMMARY $PRIMERSCHEME $SAMPLENAME${NC}\n" | tee -a "${RUNLOG}3.log"
@@ -390,11 +398,9 @@ if [ $S3 = 1 ] ; then
                 fi
                 
                 #Make samplename subdirectory if required
-                check_mkdir $SAMPLENAME
-                #Move output from what was produced into its own directory
-                find ./ -type f -name "$SAMPLENAME*" | xargs -I '{}'  mv {} "$SAMPLENAME"/
-                #Move directory to another level for clarity
-                mv $ARTIC_OUT/fastq/$SAMPLENAME $ARTIC_OUT/processed/$SAMPLENAME
+                check_mkdir $ARTIC_OUT/processed/$SAMPLENAME
+                #Move output from what was produced into its own directory in processed
+                find ./ -type f -name "$SAMPLENAME*" | xargs -I '{}'  mv {} "$ARTIC_OUT/processed/$SAMPLENAME"/
             else
                 printf "\n\n${RED}ERROR:${NC} Too few reads (n = $FASTQLENGTH) in File $FILE (Barcode $BARCODE, Sample $SAMPLENAME).\nAborting processing this file\n" | tee -a "${RUNLOG}3.log"
             fi
@@ -437,7 +443,7 @@ if [ $S5 = 1 ] ; then
     
     printf "\n###### ${GREEN} Determining nextclade lineages ${NC} ######\n\n"
     change_conda nextclade
-    check_package "nextclade" "nextclade package" "nextcladecondaconda conda activate "
+    check_package "nextclade" "nextclade package" "nextclade"
     NCLADE_REF="$REFDIR/nextclade"
     printf "nextclade --input-fasta $ALLSEQ --output-csv nextclade.csv --output-json nextclade.json --input-pcr-primers $NCLADE_REF/nextclade_primers.csv --input-root-seq $NCLADE_REF/root.fasta --input-tree $NCLADE_REF/tree.json --input-qc-config $NCLADE_REF/qc.json --input-gene-map $NCLADE_REF/genemap.gff \n\n" | tee "${LOGFOLDER}nextclade.log"
     nextclade --input-fasta $ALLSEQ --output-csv nextclade.csv --output-json nextclade.json --input-pcr-primers $NCLADE_REF/nextclade_primers.csv --input-root-seq $NCLADE_REF/root.fasta --input-tree $NCLADE_REF/tree.json --input-qc-config $NCLADE_REF/qc.json --input-gene-map $NCLADE_REF/genemap.gff 2>&1 | tee -a "${LOGFOLDER}nextclade.log"
@@ -552,21 +558,8 @@ exit
 
 
 
-
-
-
-
-
-
-
-
 #################
 #ARCHIVE STEPS - Keeping here for easier reference
-
-
-
-
-
 if [ $S7 = 1 ] ; then
     printf "\n###### ${BLUE}Step 7: Generate filtered fasta file of submittable entries. ${NC} ######\n\n"
     
