@@ -235,16 +235,16 @@ if [ $S2 = 1 ] || [ $S3 = 1 ] || [ $S7 = 1 ]; then
     #Check primers and determine max and min sizes and primer scheme for analysis
     check_var $PRIMERS "-p (primers)"
     if [ $PRIMERS = "Sanger" ] ; then
-        MAX=1250
         MIN=750
+        MAX=1250
         PRIMERSCHEME=SARS-CoV-2/V1
     elif [ $PRIMERS = "Artic" ] ; then
-        MAX=700
         MIN=400
+        MAX=700
         PRIMERSCHEME=SARS-CoV-2/V3
     elif [ $PRIMERS = "Midnight" ] ; then
-        MAX=950
-        MIN=1450
+        MIN=950
+        MAX=1450
         PRIMERSCHEME=SARS-CoV-2/V2
     else
         Help
