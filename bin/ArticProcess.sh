@@ -444,14 +444,19 @@ if [ $S5 = 1 ] ; then
     printf "\n###### ${GREEN} Determining nextclade lineages ${NC} ######\n\n"
     change_conda nextclade
     check_package "nextclade" "nextclade package" "nextclade"
-    NCLADE_REF="$REFDIR/nextclade"
-    printf "nextclade --input-fasta $ALLSEQ --output-csv nextclade.csv --output-json nextclade.json --input-pcr-primers $NCLADE_REF/nextclade_primers.csv --input-root-seq $NCLADE_REF/root.fasta --input-tree $NCLADE_REF/tree.json --input-qc-config $NCLADE_REF/qc.json --input-gene-map $NCLADE_REF/genemap.gff \n\n" | tee "${LOGFOLDER}nextclade.log"
-    nextclade --input-fasta $ALLSEQ --output-csv nextclade.csv --output-json nextclade.json --input-pcr-primers $NCLADE_REF/nextclade_primers.csv --input-root-seq $NCLADE_REF/root.fasta --input-tree $NCLADE_REF/tree.json --input-qc-config $NCLADE_REF/qc.json --input-gene-map $NCLADE_REF/genemap.gff 2>&1 | tee -a "${LOGFOLDER}nextclade.log"
+    NCLADE_DATA="$REFDIR/nextclade"
+    NCLADE_REF=`realpath ~/ref/nextclade/sars-cov-2`
+    present $NCLADE_DATA "d"
+    present $NCLADE_REF "d"
+        
+    printf "nextclade --verbose --in-order --input-fasta $ALLSEQ --input-dataset $NCLADE_REF --input-pcr-primers $NCLADE_DATA/primers.csv --output-csv nextclade.csv --output-json nextclade.json --output-tree nextclade.auspice.json --output-basename allsequences \n\n" | tee "${LOGFOLDER}nextclade.log"
+    nextclade --verbose --in-order --input-fasta $ALLSEQ --input-dataset $NCLADE_REF --input-pcr-primers $NCLADE_DATA/primers.csv --output-csv nextclade.csv --output-json nextclade.json --output-tree nextclade.auspice.json --output-basename allsequences 2>&1 | tee -a "${LOGFOLDER}nextclade.log"
+    
     #Clean-up outputs
     mv allsequences.gene* proteins/ 
     mv nextclade* intermediates/
     mv allsequences*.csv intermediates/
-    
+
     printf "\n###### ${GREEN} Determining PANGO lineages ${NC} ######\n\n"
     change_conda pangolin
     check_package "pangolin" "pangolin environment" "pangolin"
