@@ -318,11 +318,12 @@ printf "${GREEN}CHECKED:${NC}All required programs, files and locations are pres
 #STEP 1: Run the guppy barcoder to demultiplex into separate barcodes
 if [ $S1 = 1 ] ; then
     printf "\n###### ${BLUE}Step 1: Running the guppy_barcoder to demultiplex the FASTQ files.${NC} ######\n\n"
-    printf "Looking for mk1c data structure\n"
     
     if [ `find $FASTQRAW -type d -name 'barcode*' | wc -l ` -gt 0 ] ; then
-        printf "Identified mk1c data structure\n"
-        printf "Moving all fastq files to $FASTQRAW directory and deleting subdirectories"
+        printf "Found barcoded data structure\n"
+        printf "Unzipping files if saved as a gzip\n"
+        find $FASTQRAW -type f -name '*.fastq.gz' | xargs gunzip
+        printf "Moving all fastq files to $FASTQRAW directory and deleting subdirectories\n"
         find $FASTQRAW -type f -name '*.fastq' | xargs -I '{}'  mv {} ${FASTQRAW}/
         rm -rvf $FASTQRAW/barcode*
         rm -rvf $FASTQRAW/unclassified
