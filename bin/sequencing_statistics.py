@@ -381,8 +381,8 @@ print("")
 #WRITE RESULTS
 print("  Writing out all sequence data with metadata...")
 output_fn = "Samples_Sequenced_With_Metadata.csv"
-samplemeta_df.to_csv(os.path.join(data_dir, output_fn), sep = ',', index=False)
-print("  To: %s" % os.path.join(data_dir, output_fn))
+samplemeta_df.to_csv(os.path.join(gisaid_dir, output_fn), sep = ',', index=False)
+print("  To: %s" % os.path.join(gisaid_dir, output_fn))
 print("Done.")
 print("")
 
@@ -455,8 +455,8 @@ print("Done")
 #WRITE RESULTS
 print("  Writing out gisaid metadata submission file for all submittable sequences...")
 output_fn = "GISAID_Submission_Data.csv"
-gisaid_df.to_csv(os.path.join(data_dir, output_fn), sep = ',', index=False)
-print("  To: %s" % os.path.join(data_dir, output_fn))
+gisaid_df.to_csv(os.path.join(gisaid_dir, output_fn), sep = ',', index=False)
+print("  To: %s" % os.path.join(gisaid_dir, output_fn))
 print("Done.")
 print("")
 
@@ -468,8 +468,8 @@ translate_df = translate_df.drop(columns='covv_subm_sample_id')
 
 print("  Writing out translation file for filtering fasta and replacing SeqID with virus name")
 output_fn = "GISAID_Translate.csv"
-translate_df.to_csv(os.path.join(data_dir, output_fn), sep = ',', index=False)
-print("  To: %s" % os.path.join(data_dir, output_fn))
+translate_df.to_csv(os.path.join(gisaid_dir, output_fn), sep = ',', index=False)
+print("  To: %s" % os.path.join(gisaid_dir, output_fn))
 print("Done.")
 print("")
 
