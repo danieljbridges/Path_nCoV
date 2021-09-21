@@ -8,6 +8,7 @@ import sys
 import subprocess
 import pandas as pd
 import numpy as np
+from Bio import SeqIO
 
 
 def load_coverage_files(sample_dir):
@@ -161,7 +162,7 @@ def calc_contig_n50(cov):
     return contigs[ix]
 
 
-def calc_gisaid_stats(df, depth_threshold=10):
+def calc_gisaid_stats(df, depth_threshold=30):
     """
     Calculate bioinformatics statistics required for 
     GISAD submission
@@ -319,3 +320,31 @@ def calc_fastq_total_reads(fastq_fn):
             c += 0.25 #There are four lines per read
     return int(c)
 
+def fasta_stats (fasta_fp):
+    """
+    Define statistics from a fasta (single- or multi-line)
+    
+    Parameters
+        fasta_fp : filepath to fasta file
+            
+    Returns
+        dt : dict, containing statistics on fasta file            
+    """
+    #Define the dictionary
+    dt = {}
+    
+    #Load the fasta file and iterate through
+    for record in SeqIO.parse(fasta_fp, "fasta") :
+    
+        #Calculate the statistics
+        fa_length = len(record.seq) 
+        fa_num_N = record.seq.count('N') 
+        fa_coverage = ((fa_length - fa_num_N) / fa_length) *100
+        
+        # Package key statistics into a dictionary with the record.id as the key
+        dt.update({ record.id : {"coverage_breadth_fasta": fa_coverage,
+                                 "number_Ns_fasta": fa_num_N,
+                                 "consensus_genome_length_fasta": fa_length}
+                  })
+    
+    return dt

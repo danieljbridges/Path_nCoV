@@ -20,7 +20,6 @@ import numpy as np
 from Bio import SeqIO
 from gisaid import *
 
-
 print("=" * 80)
 print("Compute GISAID statistics")
 print("-" * 80)
@@ -178,6 +177,8 @@ for r in rs:
                 stats_dt.update({"sequencing_depth_avg_fastq": 0})
                 stats_dt.update({"total_reads": 0})
             
+            #Calculate coverage from fasta file
+            
             # Store
             dts.append(stats_dt)
         
@@ -187,6 +188,24 @@ for r in rs:
 # Create data frame
 stats_df = pd.DataFrame(dts)
 print("Done.")
+
+fa_path = os.path.join(gisaid_dir, "allsequences.fasta")
+if os.path.isfile(fa_path):    
+    print("Calculating statistics from the multi-fasta file for all sequences")
+    #Generate statistics from the multi-fasta file
+    fasta_dt = fasta_stats(fa_path)
+    #Turn dictionary into a dataframe in correct orientation
+    fasta_df = pd.DataFrame.from_dict(fasta_dt, orient ='index')
+    #Reset the index so it is a column you can match on
+    fasta_df.reset_index(inplace=True)
+    print("   Stats generated for %d sequences" % len(fasta_df))
+
+    #Merge with the other gisaid stats
+    print("Merging fasta stats with bam / fastq stats (stats_df)")
+    print("   %d records in stats_df" % len(stats_df))
+    stats_df = pd.merge(stats_df, fasta_df, how='outer', left_on='SeqID', right_on='index')
+    print("   %d records remaining" % len(stats_df))
+
 
 #Check that all the sequence IDs are unique
 if len(stats_df["SeqID"]) == len(set(stats_df["SeqID"])):
