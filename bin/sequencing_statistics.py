@@ -205,6 +205,7 @@ if os.path.isfile(fa_path):
     print("   %d records in stats_df" % len(stats_df))
     stats_df = pd.merge(stats_df, fasta_df, how='outer', left_on='SeqID', right_on='index')
     print("   %d records remaining" % len(stats_df))
+    stats_df.drop(columns = ['index'], inplace = True)
 
 
 #Check that all the sequence IDs are unique
