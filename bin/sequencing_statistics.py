@@ -289,7 +289,7 @@ qc_breadth = 50
 
 print("-" * 80)
 print("Isolating submittable samples from controls, unsequenced samples and those marked for exclusion")
-keepers_df = merged_df.query("& ExcludeSample != 'Y'" +
+keepers_df = merged_df.query("ExcludeSample != 'Y'" +
                              "& Type == 'Sample'" ,
                              inplace=False)
 #sequencing_depth_avg >= @qc_depth", "& coverage_breadth >= @qc_breadth"
