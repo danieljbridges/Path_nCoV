@@ -63,6 +63,9 @@ print("   %d samples with a date" % samplemeta_df.shape[0])
 #Drop all entries previously submitted
 samplemeta_df.query("GISAID_Accession_Number != GISAID_Accession_Number",inplace = True)
 print("   %d samples without an accession number" % samplemeta_df.shape[0])
+#DRop all entries without a consensus
+samplemeta_df.query("coverage_breadth_fasta > 0",inplace = True)
+print("   %d samples without a consensus sequence" % samplemeta_df.shape[0])
 #Drop all entries without a location
 #samplemeta_df.dropna(axis=0, subset=['Province'], inplace=True)
 #print("   %d samples with a location" % samplemeta_df.shape[0])
