@@ -371,12 +371,14 @@ print("  Total samples retained: %d" % keepers_df.shape[0])
 samplemeta_df['SeqDate'] = pd.to_datetime(samplemeta_df['SeqDate'], format='%d/%m/%Y')
 samplemeta_df['SpecimenDate'] = pd.to_datetime(samplemeta_df['SpecimenDate'], format='%d/%m/%Y')
 #Sanity check on sample date and sequencing date
-samplemeta_df['DateCheck'] = samplemeta_df['SeqDate'] < samplemeta_df['SpecimenDate']
-if samplemeta_df['DateCheck'].unique().shape[0] > 1:
-    print("ERROR: %d records have a SeqDate before the SpecimenDate" % samplemeta_df[samplemeta_df.DateCheck==False].shape[0])
+samplemeta_df['DateError'] = samplemeta_df['SeqDate'] < samplemeta_df['SpecimenDate']
+
+if samplemeta_df[samplemeta_df.DateError==True].shape[0] > 0 :
+    print("ERROR: %d records have a SeqDate before the SpecimenDate" % samplemeta_df[samplemeta_df.DateError==True].shape[0])
+    print(samplemeta_df[samplemeta_df.DateError==True][['SeqID','SeqRun','SpecimenDate','SeqDate']])
 else:
     print("All records have a SeqDate after the SpecimenDate")
-    samplemeta_df.drop(columns = ['DateCheck'], inplace = True)
+    samplemeta_df.drop(columns = ['DateError'], inplace = True)
 print("")
 
 #WRITE RESULTS
