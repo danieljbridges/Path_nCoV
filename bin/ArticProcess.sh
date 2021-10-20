@@ -321,8 +321,10 @@ if [ $S1 = 1 ] ; then
     
     if [ `find $FASTQRAW -type d -name 'barcode*' | wc -l ` -gt 0 ] ; then
         printf "Found barcoded data structure\n"
-        printf "Unzipping files if saved as a gzip\n"
-        find $FASTQRAW -type f -name '*.fastq.gz' | xargs gunzip
+        if [ `find $FASTQRAW -type f -name '*.fastq.gz' | wc -l ` -gt 0 ] ; then
+            printf "Unzipping files saved as a gzip\n"
+            find $FASTQRAW -type f -name '*.fastq.gz' | xargs gunzip
+        fi
         printf "Moving all fastq files to $FASTQRAW directory and deleting subdirectories\n"
         find $FASTQRAW -type f -name '*.fastq' | xargs -I '{}'  mv {} ${FASTQRAW}/
         rm -rvf $FASTQRAW/barcode*
