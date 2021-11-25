@@ -302,15 +302,26 @@ print("")
 print("Identifying highest depth consensus where samples have been sequenced multiple times:")
 
 l_dfs = []
-print("  {:<8}  {:<8}  {:<10}  {:<4}".format("Sample", "No. dup.", "Keep", "Depth"))
-
+print("  {:<8}  {:<8}  {:<15}  {:<4}  {:<4}  {:<10}  {:<4}  {:<4}  {:<4}"
+      .format("Sample", "No. dup.", "SeqID", "Breadth", "Depth", "Note", "Top_SeqID","Top_Breadth", "Top_Depth",))
 
 for n, sdf in keepers_df.groupby("SampleID"):
     n_dup = sdf.shape[0]
     if n_dup > 1:
         keep = sdf.sort_values(by =['GISAID_Accession_Number','coverage_breadth','sequencing_depth_avg'], 
                                ascending=[False,False,False], na_position='last').iloc[0]
-        print("  {:<8}  {:<8}  {:<10}  {:<4.1f}".format(n, n_dup, keep["SampleID"], keep["sequencing_depth_avg"]))
+        #Check that there are not multiple GISAID entries or that a better seq exists for submission
+        if sdf[sdf['GISAID_Accession_Number'].notna()].shape[0] > 0 :
+            #Identify best SeqID scoring entry
+            top = sdf.sort_values(by =['coverage_breadth','sequencing_depth_avg'], 
+                                       ascending=[False,False], na_position='last').iloc[0]
+            if top['SeqID'] != keep['SeqID'] :
+                print("  {:<8}  {:<8}  {:<15}  {:<4.0f}     {:<4.0f}     {:<4}  {:<15}  {:<4.0f}     {:<4.0f}".format(
+                    n, n_dup, keep["SeqID"], keep["coverage_breadth"], keep["sequencing_depth_avg"], 
+                    "WARNING", top['SeqID'], top['coverage_breadth'], top['sequencing_depth_avg']))
+            else:
+                print("  {:<8}  {:<8}  {:<15}  {:<4.0f}     {:<4.0f}".format(
+                    n, n_dup, keep["SeqID"], keep["coverage_breadth"], keep["sequencing_depth_avg"]))
     else:
         keep = sdf.iloc[0]
     l_dfs.append(keep)
