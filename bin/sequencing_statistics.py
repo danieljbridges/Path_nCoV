@@ -380,7 +380,7 @@ print("  Total samples retained: %d" % keepers_df.shape[0])
 
 #Change date fields from str to date
 samplemeta_df['SeqDate'] = pd.to_datetime(samplemeta_df['SeqDate'], format='%d/%m/%Y')
-samplemeta_df['SpecimenDate'] = pd.to_datetime(samplemeta_df['SpecimenDate'], format='%d/%m/%Y')
+samplemeta_df['SpecimenDate'] = pd.to_datetime(samplemeta_df['SpecimenDate'])
 #Sanity check on sample date and sequencing date
 samplemeta_df['DateError'] = samplemeta_df['SeqDate'] < samplemeta_df['SpecimenDate']
 
