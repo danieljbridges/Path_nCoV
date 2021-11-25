@@ -448,14 +448,17 @@ if [ $S5 = 1 ] ; then
     change_conda nextclade
     check_package "nextclade" "nextclade package" "nextclade"
     NCLADE_DATA="$REFDIR/nextclade"
-    NCLADE_REF=`realpath ~/ref/nextclade/sars-cov-2`
+    NCLADE_REF=`realpath ~/.nextclade/dataset/sars-cov-2/`
     present $NCLADE_DATA "d"
     present $NCLADE_REF "d"
-        
     printf "nextclade --verbose --in-order --input-fasta $ALLSEQ --input-dataset $NCLADE_REF --input-pcr-primers $NCLADE_DATA/primers.csv --output-csv nextclade.csv --output-json nextclade.json --output-tree nextclade.auspice.json --output-basename allsequences \n\n" | tee "${LOGFOLDER}nextclade.log"
     nextclade --verbose --in-order --input-fasta $ALLSEQ --input-dataset $NCLADE_REF --input-pcr-primers $NCLADE_DATA/primers.csv --output-csv nextclade.csv --output-json nextclade.json --output-tree nextclade.auspice.json --output-basename allsequences 2>&1 | tee -a "${LOGFOLDER}nextclade.log"
-    
-    #Clean-up outputs
+    #Check everything ran properly
+    if [ `grep -c ERROR ${LOGFOLDER}nextclade.log` != 0 ] ; then
+        printf "Error(s) identified in Nextclade log\n Exiting script....\n\n"
+        exit
+    fi
+    #Clean-up nextclade outputs
     mv allsequences.gene* proteins/ 
     mv nextclade* intermediates/
     mv allsequences*.csv intermediates/
