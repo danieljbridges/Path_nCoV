@@ -65,12 +65,22 @@ samplemeta_df.query("GISAID_Accession_Number != GISAID_Accession_Number",inplace
 print("   %d samples without an accession number" % samplemeta_df.shape[0])
 #DRop all entries without a consensus
 samplemeta_df.query("coverage_breadth_fasta > 0",inplace = True)
-print("   %d samples without a consensus sequence" % samplemeta_df.shape[0])
+print("   %d samples with a consensus sequence" % samplemeta_df.shape[0])
 #Drop all entries without a location
 #samplemeta_df.dropna(axis=0, subset=['Province'], inplace=True)
 #print("   %d samples with a location" % samplemeta_df.shape[0])
 #Reset the index
 samplemeta_df.reset_index(inplace=True, drop=True)
+
+if samplemeta_df.shape[0] == 0 :
+    print("-" * 80)
+    print("Exiting script as no entries present for submission")
+    print("-" * 80)
+    print("Runtime: %s" % str(datetime.timedelta(seconds=time.time() - start_time)))
+    print("Finished at: %s" % datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    print("=" * 80)
+    sys.exit(0)
+
 
 print("-" * 80)
 print("Generating data for submission")
@@ -98,7 +108,6 @@ samplemeta_df.reset_index(inplace=True, drop=True)
 
 #Create an empty dataframe with length of samplemeta_df
 gisaid_df = pd.DataFrame(index=np.arange(samplemeta_df.shape[0]), columns=np.arange(0))
-# pd.DataFrame(index=np.arange(1), columns=np.arange(8))
 gisaid_df["submitter"] = "djbridges"
 gisaid_df["fn"] = "GISAID_Submission_Data.csv"
 gisaid_df["covv_virus_name"] = "hCoV-19/Zambia/ZMB-"+ samplemeta_df['SampleID'].astype('str') + "/" + samplemeta_df['Year'].astype('str')
@@ -112,6 +121,7 @@ gisaid_df["covv_add_host_info"] = ""
 gisaid_df["covv_gender"] = samplemeta_df['Sex']
 gisaid_df["covv_patient_age"] = samplemeta_df['Age']
 gisaid_df["covv_patient_status"] = "Unknown"
+#gisaid_df["covv_patient_status"] = samplemeta_df['PatientStatus']
 gisaid_df["covv_specimen"] = "Nasopharyngeal swab"
 gisaid_df["covv_outbreak"] = ""
 gisaid_df["covv_last_vaccinated"] = ""
@@ -120,12 +130,16 @@ gisaid_df["covv_seq_technology"] = "Nanopore MinION"
 gisaid_df["covv_assembly_method"] = "ARTIC Field Workflow"
 gisaid_df["covv_coverage"] = samplemeta_df['sequencing_depth_avg'].astype('int')
 gisaid_df["covv_orig_lab"] = "University of Zambia, School of Veterinary Medicine"
+#gisaid_df["covv_orig_lab"] = "Right to Care Zambia"
 gisaid_df["covv_orig_lab_addr"] = "University of Zambia, School of Veterinary Medicine, Gt East Road Campus, Lusaka, Zambia"
+#gisaid_df["covv_orig_lab_addr"] = "Right to Care, Lusaka, Zambia"
 gisaid_df["covv_provider_sample_id"] = samplemeta_df["SeqID"]
+#gisaid_df["covv_provider_sample_id"] = samplemeta_df["Epid Number"]
 gisaid_df["covv_subm_lab"] = "UNZAVET and PATH"
 gisaid_df["covv_subm_lab_addr"] = "University of Zambia, School of Veterinary Medicine, Gt East Road Campus, Lusaka, Zambia"
 gisaid_df["covv_subm_sample_id"] = samplemeta_df["SampleID"]
-gisaid_df["covv_authors"] = "Mulenga Mwenda-Chimfwembe, Ngonda Saasa, Daniel Bridges, ZNPHI and ZGSC"
+gisaid_df["covv_authors"] = "Mulenga Mwenda, Ngonda Saasa, Daniel Bridges, ZNPHI and ZGSC"
+#gisaid_df["covv_authors"] = "Mulenga Mwenda, Ngonda Saasa, Mupila Z, Kwenda G, Gill CJ, Mwananyanda L, Daniel Bridges"
 gisaid_df["covv_comment"] = ""
 gisaid_df["comment_type"] =""
 print("   Done")
@@ -141,7 +155,7 @@ print("")
 
 #Combine dfs and drop all unnecessary columns
 print("-" * 80)
-samplemeta_df = samplemeta_df[['SampleID','SeqID']]
+samplemeta_df = samplemeta_df[['SampleID','SeqID','Notes','lineage']]
 gisaid_df = gisaid_df[['covv_virus_name','covv_subm_sample_id']]
 translate_df = pd.merge(samplemeta_df, gisaid_df, how='inner', left_on='SampleID', right_on='covv_subm_sample_id')
 translate_df = translate_df.drop(columns='covv_subm_sample_id')
@@ -153,6 +167,7 @@ print("  To: %s" % os.path.join(submission_dir, output_fn))
 print("Done.")
 print("")
 
+translate_df = translate_df.drop(columns=['Notes','lineage'])
 print("-" * 80)
 print("  Generating filtered fasta file for GISAID submission")
 #Generate a dictionary of translationn terms
