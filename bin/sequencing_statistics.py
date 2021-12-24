@@ -341,14 +341,6 @@ alldata_df = pd.merge(left=merged_df,
                     how='outer')
 alldata_df = alldata_df.fillna({'Submittable' : False})
 
-#WRITE RESULTS
-print("Writing all sequencing data...")
-output_fn = "allsequencedata.csv"
-alldata_df.to_csv(os.path.join(gisaid_dir, output_fn), sep = ',', index=False)
-print("  To: %s" % os.path.join(gisaid_dir, output_fn))
-print("Done.")
-print("")
-
 #Merging in metadata
 print("-" * 80)
 print("Incorporating metadata...")
@@ -380,7 +372,7 @@ print("  Total samples retained: %d" % keepers_df.shape[0])
 
 #Change date fields from str to date
 samplemeta_df['SeqDate'] = pd.to_datetime(samplemeta_df['SeqDate'], format='%d/%m/%Y')
-samplemeta_df['SpecimenDate'] = pd.to_datetime(samplemeta_df['SpecimenDate'])
+samplemeta_df['SpecimenDate'] = pd.to_datetime(samplemeta_df['SpecimenDate'], format='%d/%m/%Y')
 #Sanity check on sample date and sequencing date
 samplemeta_df['DateError'] = samplemeta_df['SeqDate'] < samplemeta_df['SpecimenDate']
 
@@ -396,6 +388,29 @@ print("")
 print("  Writing out all sequence data with metadata...")
 output_fn = "Samples_Sequenced_With_Metadata.csv"
 samplemeta_df.to_csv(os.path.join(gisaid_dir, output_fn), sep = ',', index=False)
+print("  To: %s" % os.path.join(gisaid_dir, output_fn))
+print("Done.")
+print("")
+
+print("-" * 80)
+print("Finalising all sequencing data...")
+
+# Add column to alldata_df that highlights if a sample has metadata or not
+print("Marking samples with available metadata in df")
+SID_meta = list(samplemeta_df['SampleID'])
+meta = []
+for s in alldata_df['SampleID'] :
+    if s in SID_meta :
+        r = True
+    else :
+        r = False
+    meta.append(r)
+alldata_df['Metadata available'] = meta
+
+#WRITE RESULTS
+print("Writing out all sequencing data...")
+output_fn = "allsequencedata.csv"
+alldata_df.to_csv(os.path.join(gisaid_dir, output_fn), sep = ',', index=False)
 print("  To: %s" % os.path.join(gisaid_dir, output_fn))
 print("Done.")
 print("")
