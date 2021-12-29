@@ -48,14 +48,16 @@ for opt, value in opts:
         print("  Parameter %s not recognized." % opt)
         sys.exit(2)
 print("Done.")
-print("")
 
 print("-" * 80)
 samples_seq_fn = "Samples_Sequenced_With_Metadata.csv"
 print("Reading in %s file" % samples_seq_fn)
-samplemeta_df = pd.read_csv(os.path.join(seqdata_dir,samples_seq_fn),
-                           parse_dates=['SpecimenDate','SeqDate'])
+samplemeta_df = pd.read_csv(os.path.join(seqdata_dir,samples_seq_fn))
+samplemeta_df['SpecimenDate'] = pd.to_datetime(samplemeta_df['SpecimenDate'], format='%Y-%m-%d')
+samplemeta_df['SeqDate'] = pd.to_datetime(samplemeta_df['SeqDate'], format='%Y-%m-%d')
 
+print("-" * 80)
+print("Filtering for submittable samples")
 print("   %d samples identified" % samplemeta_df.shape[0])
 #Drop all entries without a date
 samplemeta_df.query("SpecimenDate > datetime.datetime(2000,1,1)",inplace = True)
