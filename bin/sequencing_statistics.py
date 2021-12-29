@@ -288,13 +288,17 @@ qc_depth = 50
 qc_breadth = 50
 
 print("-" * 80)
-print("Isolating submittable samples from controls, unsequenced samples and those marked for exclusion")
-keepers_df = merged_df.query("ExcludeSample != 'Y'" +
-                             "& Type == 'Sample'" ,
-                             inplace=False)
-#sequencing_depth_avg >= @qc_depth", "& coverage_breadth >= @qc_breadth"
-                             
-print("    Samples remaining: %d" % keepers_df.shape[0])
+print("Filtering sample list")
+print("   %d entries identified" % merged_df.shape[0])
+keepers_df = merged_df.query("Type == 'Sample'", inplace=False)
+print("   %d marked as samples" % keepers_df.shape[0])
+keepers_df = keepers_df.query("ExcludeSample != 'Y'", inplace=False)
+print("   %d samples not marked to exclude" % keepers_df.shape[0])
+keepers_df = keepers_df.query("sequencing_depth_avg >= @qc_depth", inplace=False)
+print("   %d samples with seq depth > %dx" % (keepers_df.shape[0], qc_depth))
+keepers_df = keepers_df.query("coverage_breadth >= @qc_breadth", inplace=False)
+print("   %d samples with coverage breadth > %d%%" % (keepers_df.shape[0], qc_breadth))
+print("Samples remaining: %d" % keepers_df.shape[0])
 print("Done")
 print("")
 

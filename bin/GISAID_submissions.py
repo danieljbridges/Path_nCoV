@@ -29,24 +29,42 @@ try:
 except getopt.GetoptError:
     print("  Error parsing options.")
     sys.exit(2)
+
 for opt, value in opts:
     if opt == "-d":
         seqdata_dir = value
-        if os.path.isdir(seqdata_dir):
-            print("  Sequence data directory: %s" % seqdata_dir)
-        else:
-            print("  Unable to recognise Sequence data directory: %s" % seqdata_dir)
-            sys.exit(2)
     elif opt == "-s":
         submission_dir = value
-        if os.path.isdir(submission_dir):
-            print("  Submissions directory: %s" % submission_dir)
-        else:
-            print("  Unable to recognise submissions directory: %s" % submission_dir)
-            sys.exit(2)
     else:
         print("  Parameter %s not recognized." % opt)
         sys.exit(2)
+
+#Ensure all required variables have been parsed    
+try:
+    seqdata_dir
+except:              # Whatever your error is (mine was a keyError)
+    print()
+    print("-d flag missing for sequence data directory" )
+    print("using default ~/Dropbox/Zambia_nCoV/Data/Sequencing_Data")
+    seqdata_dir = os.path.expanduser('~/Dropbox/Zambia_nCoV/Data/Sequencing_Data')
+    if os.path.isdir(seqdata_dir):
+        print("  Sequence data directory found: %s" % seqdata_dir)
+    else:
+        print("  Unable to recognise sequence data directory: %s" % seqdata_dir)
+        sys.exit(2)
+try:
+    submission_dir
+except:              # Whatever your error is (mine was a keyError)
+    print()
+    print("-s flag missing for submission directory" )
+    print("  using default ~/Dropbox/Zambia_nCoV/Data/Submissions")
+    submission_dir = os.path.expanduser('~/Dropbox/Zambia_nCoV/Data/Submissions')
+    if os.path.isdir(submission_dir):
+        print("  Submissions directory found: %s" % submission_dir)
+    else:
+        print("  Unable to recognise submissions directory: %s" % submission_dir)
+        sys.exit(2)
+print()
 print("Done.")
 
 print("-" * 80)
