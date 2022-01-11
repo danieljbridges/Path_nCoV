@@ -103,6 +103,7 @@ function check_package {
 }
 
 function GETCOLMID {
+#Function to identify the column number for a header
 awk -F"$1" 'NR==1{ for (i=1;i<=NF;i++) if ($i == "'$2'") print i }' $3
 }
 
@@ -251,6 +252,7 @@ if [ $S2 = 1 ] || [ $S3 = 1 ] || [ $S7 = 1 ]; then
         printf "${RED}ERROR:${NC} Unrecognised primer scheme\n\n"
         exit
     fi
+    printf "Primerscheme - $PRIMERSCHEME (Min: $MIN, Max: $MAX)\n"
 fi
 
 if [ $S3 = 1 ] || [ $S5 = 1 ] || [ $S7 = 1 ]; then
@@ -263,34 +265,46 @@ fi
 if [ $S3 = 1 ] ; then
     SEQUENCINGSUMMARY=$(find $RAWDATADIR -name 'sequencing_summary*' -not -name '*.tmp')
     check_var ${SEQUENCINGSUMMARY:- 1} "Sequencing Summary"
+    printf "   Sequencing summary file present\n"
 fi
 
 if [ $S3 = 1 ] || [ $S6 = 1 ] || [ $S7 = 1 ] ; then
     #Identify csv file
     SAMPLEFILE="$BASEFOLDER/2_SampleList_and_Rampart/Samples_Sequenced.csv"
     present $SAMPLEFILE "f"
+    printf "   Samplefile present\n"
 fi
 
 
 if [ $S3 = 1 ] || [ $S6 = 1 ] ; then
     #Check if all of the seqIDs are unique in the samples file
-    readarray -t IDS < <(awk -F"," 'NR>1 {if ($8) print$8}' $SAMPLEFILE | sort | uniq -d)
+    #Identify correct column IDs
+    SEQIDCOL="$(GETCOLMID "," "SeqID" "$SAMPLEFILE")"
+    SEQRUNCOL="$(GETCOLMID "," "SeqRun" "$SAMPLEFILE")"
+    SEQBARCODE="$(GETCOLMID "," "SeqBarcode" "$SAMPLEFILE")"
+    
+    readarray -t IDS < <(awk -F"," -v i=$SEQIDCOL 'NR>1 {if ($i) print$i}' $SAMPLEFILE | sort | uniq -d)
     if [ ${#IDS[@]} -gt 0 ]; then
         printf "${RED}ERROR:${NC} The following duplicate seqIDs exist in $SAMPLEFILE. 
-        Please correct so that every seqID (column 8) is unique to the entire list (empty records are not included).\n"
+        Please correct so that every seqID (column $SEQIDCOL) is unique to the entire list (empty records are not included).\n"
         printf '%s\n' "${IDS[@]}"
         exit
+    else
+        printf "   Sequence ID array accepted\n"
     fi
-    
+  
     #Read in Samples
-    readarray -t SAMPLES < <(awk -F"," '$9 ~ /'$RUNNAME'/ {print$8}' $SAMPLEFILE)
+    readarray -t SAMPLES < <(awk -F"," -v i=$SEQRUNCOL -v j=$SEQIDCOL '$i ~ /'$RUNNAME'/ {print$j}' $SAMPLEFILE)
     if (( ${#SAMPLES[@]} == 0 )); then
-        printf "\n${RED}ERROR:${NC} SAMPLES array is empty \nExiting script\n\n"
+        printf "\n${RED}ERROR:${NC} SAMPLES array is empty for run $RUNNAME\nExiting script\n\n"
         exit
+    else
+        printf "   Sample ID array accepted\n"
     fi
     
     #Read in barcodes
-    readarray -t BARCODES < <(awk -F"," '$9 ~ /'$RUNNAME'/ {print$7}' $SAMPLEFILE)
+    #readarray -t BARCODES < <(awk -F"," '$10 ~ /'$RUNNAME'/ {print$8}' $SAMPLEFILE)
+    readarray -t BARCODES < <(awk -F"," -v i=$SEQRUNCOL -v j=$SEQBARCODE '$i ~ /'$RUNNAME'/ {print$j}' $SAMPLEFILE)
     if (( ${#BARCODES[@]} == 0 )); then
         printf "\n${RED}ERROR:${NC} BARCODES array is empty \nExiting script\n\n"
         exit
@@ -301,6 +315,8 @@ if [ $S3 = 1 ] || [ $S6 = 1 ] ; then
         printf "${RED}ERROR:${NC} The following duplicate barcodes are present in $SAMPLEFILE file for $RUNNAME run:\n"
         printf '%s\n' "${BARCODES[@]}" | awk '!($0 in seen){seen[$0];next} 1'
         exit
+    else
+        printf "   Sample barcode array accepted\n"
     fi
     printf "${GREEN}CHECKED:${NC}No errors in sample list.\n"
 fi
