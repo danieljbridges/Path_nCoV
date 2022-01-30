@@ -213,7 +213,7 @@ for DIR_REQ in "${DIRS_REQ[@]}" ; do
 done
 
 #These folders may only be created during the run
-DIRS_ADD=("$ARTIC_OUT/fastq" "$ARTIC_OUT/processed" "$BASEFOLDER/4_Consensus" "$BASEFOLDER/5_GISAID") 
+DIRS_ADD=("$ARTIC_OUT/fastq" "$ARTIC_OUT/processed" "$BASEFOLDER/4_Consensus" "$BASEFOLDER/5_GISAID" "$BASEFOLDER/6_QCAnalysis") 
 for DIR_ADD in "${DIRS_ADD[@]}" ; do
     check_mkdir $DIR_ADD
 done
