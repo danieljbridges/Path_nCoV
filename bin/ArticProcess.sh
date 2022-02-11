@@ -349,8 +349,17 @@ if [ $S1 = 1 ] ; then
         printf "Found standard data structure\n"
     fi
     
-    printf "guppy_barcoder --require_barcodes_both_ends -i $FASTQRAW -s $ARTIC_OUT/fastq --arrangements_files barcode_arrs_nb96.cfg${NC}\n" | tee "${RUNLOG}1.log"
-    guppy_barcoder --require_barcodes_both_ends -i $FASTQRAW -s $ARTIC_OUT/fastq --arrangements_files "barcode_arrs_nb96.cfg" | tee -a "${RUNLOG}1.log"
+    #Test for version of guppy to determine command to run
+    GUPVER=`guppy_barcoder -v | grep Version | cut -c 101-101`
+    printf "Identified guppy_barcoder version $GUPVER\n"
+    
+    if [ $GUPVER -lt 6 ] ; then
+        printf "guppy_barcoder --require_barcodes_both_ends -i $FASTQRAW -s $ARTIC_OUT/fastq --arrangements_files barcode_arrs_nb96.cfg${NC}\n" | tee "${RUNLOG}1.log"
+        guppy_barcoder --require_barcodes_both_ends -i $FASTQRAW -s $ARTIC_OUT/fastq --arrangements_files "barcode_arrs_nb96.cfg" | tee -a "${RUNLOG}1.log"
+    else
+        printf "guppy_barcoder --require_barcodes_both_ends -i $FASTQRAW -s $ARTIC_OUT/fastq --barcode_kits SQK-NBD112-96 ${NC}\n" | tee "${RUNLOG}1.log"
+        guppy_barcoder --require_barcodes_both_ends -i $FASTQRAW -s $ARTIC_OUT/fastq --barcode_kits "SQK-NBD112-96"  | tee -a "${RUNLOG}1.log"
+    fi
     
     printf "\n###### ${GREEN}Step 1: guppy_barcoder completed. ${NC} ######\n\n"
 else
