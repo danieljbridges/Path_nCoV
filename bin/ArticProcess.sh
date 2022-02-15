@@ -9,7 +9,7 @@ set -e #exit whenever a command exits with a non zero status
 set -u #treat undefined variables as errors
 set -o pipefail #pipe will be considered successful if all the commands are executed without errors
 
-VERSION="1.0"
+VERSION="1.1"
 #ANSI escape codes: 
 #Black        0;30     Dark Gray     1;30
 #Red          0;31     Light Red     1;31
@@ -213,7 +213,7 @@ for DIR_REQ in "${DIRS_REQ[@]}" ; do
 done
 
 #These folders may only be created during the run
-DIRS_ADD=("$ARTIC_OUT/fastq" "$ARTIC_OUT/processed" "$BASEFOLDER/4_Consensus" "$BASEFOLDER/5_GISAID" "$BASEFOLDER/6_QCAnalysis") 
+DIRS_ADD=("$ARTIC_OUT/fastq" "$ARTIC_OUT/processed" "$BASEFOLDER/4_Consensus" "$BASEFOLDER/5_GISAID" "$BASEFOLDER/5_GISAID/intermediates" "$BASEFOLDER/6_QCAnalysis") 
 for DIR_ADD in "${DIRS_ADD[@]}" ; do
     check_mkdir $DIR_ADD
 done
