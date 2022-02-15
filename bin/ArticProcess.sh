@@ -51,7 +51,7 @@ function Help {
     -h      Print this help
     -m      Process using the medaka pipeline rather than with nanopolish
     -p      Primers used during PCR [Sanger | Artic | Midnight]
-    -s      Location directory for all reference information including primers
+    -s      Location directory for github clones (assumes Path-ncov and ncov-tools cloned into this location)
     -v      Version
 
     Optional steps to omit:
@@ -128,7 +128,7 @@ while getopts 'vhp:b:r:s:m1234567' opt; do
       PRIMERS=$OPTARG
       ;;
     s)
-      REFDIR=$OPTARG
+      GITDIR=$OPTARG
       ;;
     h)
       Help
@@ -257,9 +257,11 @@ fi
 
 if [ $S3 = 1 ] || [ $S5 = 1 ] || [ $S7 = 1 ]; then
     #Check primer scheme supplied
-    check_var $REFDIR "-s (reference directory)"
-    REFDIR=`realpath $REFDIR`
-    present $REFDIR "d"
+    check_var $GITDIR "-s (Git projects directory)"
+    REFDIR=`realpath "$GITDIR/Path_nCoV/reference"`
+    NCTDIR=`realpath "$GITDIR/ncov-tools"`
+    present "$REFDIR" "d"
+    present "$NCTDIR" "d"
 fi
 
 if [ $S3 = 1 ] ; then
@@ -584,7 +586,7 @@ metadata: \"$METADATAFN\"
 negative_control_samples: [ $NTCLIST ]\n" > "config.yaml"
 
     printf "Running snakemake report\n"
-    snakemake --cores all -s ~/git/ncov-tools/workflow/Snakefile all_final_report
+    snakemake --cores all -s $NCTDIR/workflow/Snakefile all_final_report
     
 else
     printf "###### ${GREEN}Step 7: Skipping generation of QC stats${NC} ######\n\n"
