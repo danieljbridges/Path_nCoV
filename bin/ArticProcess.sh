@@ -51,7 +51,7 @@ function Help {
     -h      Print this help
     -m      Process using the medaka pipeline rather than with nanopolish
     -p      Primers used during PCR [Sanger | Artic | Midnight]
-    -s      Location directory for github clones (assumes Path-ncov and ncov-tools cloned into this location)
+    -s      Location directory for github clones (assumes Path-nCoV and ncov-tools cloned into this location)
     -v      Version
 
     Optional steps to omit:
@@ -61,7 +61,27 @@ function Help {
     -4      Omit Step 4 (Consensus sequences)
     -5      Omit Step 5 (Sequencing statistics)
     -6      Omit Step 6 (Generate JSON file for RAMPART)
-    -7      Omit Step 7 (ncov-tools QC pipeline)\n"
+    -7      Omit Step 7 (ncov-tools QC pipeline)
+    "
+    
+    HelpInstall
+}
+
+function HelpInstall {
+    printf "\n${RED}   INSTALLATION:${NC}
+    For all parts of the script to run, the following environments need to be installed:
+        ${GREEN}artic${NC} - https://artic.network/ncov-2019/ncov2019-bioinformatics-sop.html
+        ${GREEN}pangolin${NC} - https://cov-lineages.org/resources/pangolin/installation.html
+        ${GREEN}nextclade${NC} - https://docs.nextstrain.org/projects/nextclade/en/stable/user/nextclade-cli.html
+        ${GREEN}ncov-tools${NC} - https://github.com/jts/ncov-tools
+    
+    Other tools that need to be in the users path are:
+        ${GREEN}sequencing_statistics.py${NC} - from the Path_nCoV git repository
+        ${GREEN}guppy${NC} - https://community.nanoporetech.com/downloads (requires ONT community login)
+        
+    Finally for nextclade, the definitions are expected to be in:
+        ~/.nextclade/dataset/sars-cov-2/
+\n"
 }
 
 function present {
@@ -76,6 +96,7 @@ function present {
             exit
         fi
     fi
+    printf "   ${BLUE}$1${NC} found\n"
 }
 
 function check_mkdir {
@@ -86,6 +107,8 @@ function check_mkdir {
 }
 
 function check_var {
+#$1 variable required
+#$2 Help message identifying what variable relates to
     if [ -z $1 ] || [ $1 = 1 ]; then
         Help
         printf "\n${RED}ERROR:${NC} $2 variable not supplied. See Help message above.\n Exiting script\n\n"
@@ -95,16 +118,34 @@ function check_var {
 
 function check_package {
     if [ $(which $1 | wc -l) = 0 ] ; then
-        printf "${RED}ERROR:${NC} $2 not present. Please install the following and try again:\n"
-        printf "   $3\n\n"
+        printf "   ${RED}ERROR:${GREEN} $1${NC} executable not found.\n\n"
+        HelpInstall
         printf "${RED}Exiting script${NC}\n\n"
         exit
+    else
+        printf "      ${GREEN}$1${NC} command found\n"
     fi
 }
 
 function GETCOLMID {
 #Function to identify the column number for a header
 awk -F"$1" 'NR==1{ for (i=1;i<=NF;i++) if ($i == "'$2'") print i }' $3
+}
+
+function check_condaenv {
+#Test if environment is present
+readarray -t LIST < <(conda info --envs | grep envs | awk '{print $1}' | grep -e ^$1$)
+if [ ${#LIST[@]} = 0 ] ; then 
+    printf "   ${RED}ERROR:${GREEN} $1${NC} conda environment not found\n"
+    exit
+elif [ ${#LIST[@]} = 1 ] ; then #Use if single match
+    printf "   ${GREEN}$1${NC} environment found\n"
+elif [ ${#LIST[@]} > 1 ] ; then
+    printf "   Found multiple matches for $1:\n"
+    for L in "${LIST[@]}" ; do
+        printf "$L\n"
+    done
+fi
 }
 
 function change_conda {
@@ -178,11 +219,11 @@ shift $((OPTIND -1))
 #==============CHECK ALL VARIABLES AND REQUIREMENTS ARE MET==================
 #Create a space between cmd
 printf "\n${ORANGE}##### Running `basename $0` Version $VERSION ##### ${NC}\n"
-printf "${GREEN}Checking all files, folders and data are present${NC}\n"
+printf "${GREEN}Checking all files, folders, environments and data are present${NC}\n"
 #################################################
 #Enter default values if parameter not defined or build from exisiting args
-# These are MANDATORY
 
+# These are MANDATORY
 check_var ${BASEFOLDER:- 1} "-b (basefolder)"
 BASEFOLDER=`realpath $BASEFOLDER`
 present $BASEFOLDER "d"
@@ -202,6 +243,7 @@ REFDIR=${REFDIR:- 1}      # 3
 PRIMERS=${PRIMERS:- 1}          # 2, 3
 ARTIC_OUT="$BASEFOLDER/3_Artic_Output/$RUNNAME"
 RAWDATADIR="$BASEFOLDER/1_Raw/$RUNNAME"
+GITDIR=${GITDIR:- 1}
 
 #################################################
 #Make directories for the demultiplexed, combined and size selected fast_q files
@@ -223,13 +265,15 @@ ALLSEQ="allsequences.fasta" #Name of file for all sequences to output to
 #Determine if the necessary files and directories and arguments etc exist for each step
 printf ""
 if [ $S1 = 1 ] ; then
-    check_package "guppy_barcoder" "guppy" "guppy (from ONT website)\n"
+    check_package "guppy_barcoder"
     FASTQRAW="$RAWDATADIR/fastq_pass"
     present $FASTQRAW "d"
 fi
 
 if [ $S2 = 1 ] || [ $S3 = 1 ]; then
-    check_package "artic" "artic" "artic"
+    check_condaenv artic
+    change_conda artic
+    check_package artic
 fi
 
 if [ $S2 = 1 ] || [ $S3 = 1 ] || [ $S7 = 1 ]; then
@@ -262,6 +306,31 @@ if [ $S3 = 1 ] || [ $S5 = 1 ] || [ $S7 = 1 ]; then
     NCTDIR=`realpath "$GITDIR/ncov-tools"`
     present "$REFDIR" "d"
     present "$NCTDIR" "d"
+fi
+
+if [ $S5 = 1 ] ; then
+    #Pangolin requirements
+    check_condaenv pangolin
+    change_conda pangolin
+    check_package pangolin
+    
+    #nextclade requirements
+    check_condaenv nextclade
+    change_conda nextclade
+    check_package nextclade
+    NCLADE_DATA="$REFDIR/nextclade"
+    present $NCLADE_DATA "d"
+    NCLADE_REF=`echo $HOME/.nextclade/dataset/sars-cov-2/`
+    present $NCLADE_REF "d"
+    
+    #Sequencing stats requirements
+    check_package sequencing_statistics.py
+fi
+
+if [ $S7 = 1 ] ; then
+    check_condaenv ncov-qc
+    change_conda ncov-qc
+    check_package snakemake
 fi
 
 if [ $S3 = 1 ] ; then
@@ -373,6 +442,7 @@ if [ $S2 = 1 ] ; then
     printf "\n###### ${BLUE}Step 2: Combining demultiplexed files into a single fastq and excluding based on size.${NC} ######\n\n" | tee "${RUNLOG}2.log"
     readarray -t S2DIRS < <(find $ARTIC_OUT/fastq -type d -name 'barcode[0-9]*')
     
+    change_conda "artic"
     #Change directory as unable to redirect output from guppyplex
     cd $ARTIC_OUT/fastq
     
@@ -390,6 +460,7 @@ fi
 if [ $S3 = 1 ] ; then
     printf "\n###### ${BLUE}Step 3: Importing samplenames and processing with artic minion command.${NC} ######\n\n" | tee "${RUNLOG}3.log"
     
+    change_conda "artic"
     #Change directory
     cd $ARTIC_OUT/fastq/
     #Set the count
@@ -473,11 +544,7 @@ if [ $S5 = 1 ] ; then
     
     printf "\n###### ${GREEN} Determining nextclade lineages ${NC} ######\n\n"
     change_conda nextclade
-    check_package "nextclade" "nextclade package" "nextclade"
-    NCLADE_DATA="$REFDIR/nextclade"
-    NCLADE_REF=`realpath ~/.nextclade/dataset/sars-cov-2/`
-    present $NCLADE_DATA "d"
-    present $NCLADE_REF "d"
+    
     printf "nextclade --verbose --in-order --input-fasta $ALLSEQ --input-dataset $NCLADE_REF --input-pcr-primers $NCLADE_DATA/primers.csv --output-csv nextclade.csv --output-json nextclade.json --output-tree nextclade.auspice.json --output-basename allsequences \n\n" | tee "${LOGFOLDER}nextclade.log"
     nextclade --verbose --in-order --input-fasta $ALLSEQ --input-dataset $NCLADE_REF --input-pcr-primers $NCLADE_DATA/primers.csv --output-csv nextclade.csv --output-json nextclade.json --output-tree nextclade.auspice.json --output-basename allsequences 2>&1 | tee -a "${LOGFOLDER}nextclade.log"
     #Check everything ran properly
@@ -492,7 +559,6 @@ if [ $S5 = 1 ] ; then
 
     printf "\n###### ${GREEN} Determining PANGO lineages ${NC} ######\n\n"
     change_conda pangolin
-    check_package "pangolin" "pangolin environment" "pangolin"
     pangolin $ALLSEQ 2>&1 | tee "${LOGFOLDER}pango.log"
     mv lineage_report.csv intermediates/
         
@@ -555,7 +621,6 @@ fi
 if [ $S7 = 1 ] ; then
     printf "###### ${BLUE}Step 7: Running ncov-tools QC pipeline${NC} ######\n\n"
     change_conda "ncov-qc"
-    check_package "snakemake" "ncov-tools environment" "ncov-qc"
     QCDIR="$BASEFOLDER/6_QCAnalysis/$RUNNAME"
     check_mkdir $QCDIR
        
