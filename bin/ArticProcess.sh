@@ -79,9 +79,11 @@ function HelpInstall {
         ${GREEN}sequencing_statistics.py${NC} - from the Path_nCoV git repository
         ${GREEN}guppy${NC} - https://community.nanoporetech.com/downloads (requires ONT community login)
         
-    Finally for nextclade, the definitions are expected to be in:
+    Finally for nextclade, the datasets are expected to be in:
         ~/.nextclade/dataset/sars-cov-2/
-\n"
+    OR the git repo (-s flag) location (may not be most up-to-date)
+    (see https://docs.nextstrain.org/projects/nextclade/en/latest/user/datasets.html for more info)
+\n jq should be installed to allow the script to check dataset and nextcladeCli compatibility"
 }
 
 function present {
@@ -218,7 +220,7 @@ shift $((OPTIND -1))
 
 #==============CHECK ALL VARIABLES AND REQUIREMENTS ARE MET==================
 #Create a space between cmd
-printf "\n${ORANGE}##### Running `basename $0` Version $VERSION ##### ${NC}\n"
+printf "\n${GREEN}##### Running `basename $0` Version $VERSION ##### ${NC}\n"
 printf "${GREEN}Checking all files, folders, environments and data are present${NC}\n"
 #################################################
 #Enter default values if parameter not defined or build from exisiting args
@@ -255,7 +257,7 @@ for DIR_REQ in "${DIRS_REQ[@]}" ; do
 done
 
 #These folders may only be created during the run
-DIRS_ADD=("$ARTIC_OUT/fastq" "$ARTIC_OUT/processed" "$BASEFOLDER/4_Consensus" "$BASEFOLDER/5_GISAID" "$BASEFOLDER/5_GISAID/intermediates" "$BASEFOLDER/6_QCAnalysis") 
+DIRS_ADD=("$ARTIC_OUT/fastq" "$ARTIC_OUT/processed" "$BASEFOLDER/4_Consensus" "$BASEFOLDER/5_GISAID" "$BASEFOLDER/5_GISAID/intermediates" "$BASEFOLDER/5_GISAID/proteins" "$BASEFOLDER/6_QCAnalysis") 
 for DIR_ADD in "${DIRS_ADD[@]}" ; do
     check_mkdir $DIR_ADD
 done
@@ -318,11 +320,27 @@ if [ $S5 = 1 ] ; then
     check_condaenv nextclade
     change_conda nextclade
     check_package nextclade
-    NCLADE_DATA="$REFDIR/nextclade"
-    present $NCLADE_DATA "d"
-    NCLADE_REF=`echo $HOME/.nextclade/dataset/sars-cov-2/`
-    present $NCLADE_REF "d"
     
+    #Identify dataset location to use
+    NCLADE_DATA=`echo $HOME/.nextclade/dataset/sars-cov-2/`
+    if [ ! -d $NCLADE_DATA ] ; then
+      NCLADE_DATA="$REFDIR/nextclade/dataset"
+    fi
+    present $NCLADE_DATA "d"
+    #Check whether dataset matches installed nextclade version
+    if [ $(which jq | wc -l) = 1 ] ; then
+        printf "   ${BLUE}Identified jq - checking nextclade compatibility${NC}\n"
+        NC_DATASET=`jq '.compatibility.nextcladeCli.min' $NCLADE_DATA/tag.json | sed s/\"//g`
+        NC_VERSION=`nextclade -v`
+        if [ $(printf "${NC_VERSION}\n${NC_DATASET}" | sort -V | head -1) = "${NC_VERSION}" ]; then
+            printf "${ORANGE}WARNING:${NC} Nextclade dataset requires minimum v$NC_DATASET nextcladeCli ($NC_VERSION installed). Upgrade strongly suggested\n"
+        else
+            printf "   ${BLUE}Nextclade version $NC_VERSION used with dataset requiring $NC_DATASET\n${NC}"
+        fi
+    else
+        printf "   ${ORANGE}WARNING:${NC} jq not installed unable to check compatibility of nextclade dataset and installed version${NC}\n"
+    fi    
+     
     #Sequencing stats requirements
     check_package sequencing_statistics.py
 fi
@@ -545,12 +563,11 @@ if [ $S5 = 1 ] ; then
     printf "\n###### ${GREEN} Determining nextclade lineages ${NC} ######\n\n"
     change_conda nextclade
     
-    printf "nextclade --verbose --in-order --input-fasta $ALLSEQ --input-dataset $NCLADE_REF --input-pcr-primers $NCLADE_DATA/primers.csv --output-csv nextclade.csv --output-json nextclade.json --output-tree nextclade.auspice.json --output-basename allsequences \n\n" | tee "${LOGFOLDER}nextclade.log"
-    nextclade --verbose --in-order --input-fasta $ALLSEQ --input-dataset $NCLADE_REF --input-pcr-primers $NCLADE_DATA/primers.csv --output-csv nextclade.csv --output-json nextclade.json --output-tree nextclade.auspice.json --output-basename allsequences 2>&1 | tee -a "${LOGFOLDER}nextclade.log"
+    printf "nextclade --verbose --in-order --input-fasta $ALLSEQ --input-dataset $NCLADE_DATA --input-pcr-primers $REFDIR/nextclade/primers_UNZA.csv --output-csv nextclade.csv --output-json nextclade.json --output-tree nextclade.auspice.json --output-basename allsequences \n\n" | tee "${LOGFOLDER}nextclade.log"
+    nextclade --verbose --in-order --input-fasta $ALLSEQ --input-dataset $NCLADE_DATA --input-pcr-primers $REFDIR/nextclade/primers_UNZA.csv --output-csv nextclade.csv --output-json nextclade.json --output-tree nextclade.auspice.json --output-basename allsequences 2>&1 | tee -a "${LOGFOLDER}nextclade.log"
     #Check everything ran properly
     if [ `grep -c ERROR ${LOGFOLDER}nextclade.log` != 0 ] ; then
-        printf "Error(s) identified in Nextclade log\n Exiting script....\n\n"
-        exit
+        printf "${ORANGE}WARNING: Error(s) identified in Nextclade log\n"
     fi
     #Clean-up nextclade outputs
     mv allsequences.gene* proteins/ 
