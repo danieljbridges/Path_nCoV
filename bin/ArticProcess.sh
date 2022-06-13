@@ -419,7 +419,7 @@ RUNLOG=$(echo "$RUNLOG${RUNNAME}_Step_")
 
 #All checks complete
 printf "${GREEN}CHECKED:${NC}All required programs, files and locations are present.\n\n"
-exit
+
 #==============THE SCRIPT==================Se   
 #STEP 1: Run the guppy barcoder to demultiplex into separate barcodes
 if [ $S1 = 1 ] ; then
