@@ -83,7 +83,7 @@ function HelpInstall {
         ~/.nextclade/dataset/sars-cov-2/
     OR the git repo (-s flag) location (may not be most up-to-date)
     (see https://docs.nextstrain.org/projects/nextclade/en/latest/user/datasets.html for more info)
-\n jq should be installed to allow the script to check dataset and nextcladeCli compatibility"
+    jq should be installed to allow the script to check dataset and nextcladeCli compatibility\n\n"
 }
 
 function present {
@@ -136,16 +136,17 @@ awk -F"$1" 'NR==1{ for (i=1;i<=NF;i++) if ($i == "'$2'") print i }' $3
 
 function check_condaenv {
 #Test if environment is present
-readarray -t LIST < <(conda info --envs | grep envs | awk '{print $1}' | grep -e ^$1$)
+readarray -t LIST < <(conda info --envs | grep envs | awk '{print $1}' | grep -e ^$1)
 if [ ${#LIST[@]} = 0 ] ; then 
     printf "   ${RED}ERROR:${GREEN} $1${NC} conda environment not found\n"
     exit
 elif [ ${#LIST[@]} = 1 ] ; then #Use if single match
     printf "   ${GREEN}$1${NC} environment found\n"
+    ARTIC=$1
 elif [ ${#LIST[@]} > 1 ] ; then
     printf "   Found multiple matches for $1:\n"
     for L in "${LIST[@]}" ; do
-        printf "$L\n"
+        printf "     ${GREEN}$L${NC}\n"
     done
 fi
 }
@@ -274,7 +275,7 @@ fi
 
 if [ $S2 = 1 ] || [ $S3 = 1 ]; then
     check_condaenv artic
-    change_conda artic
+    change_conda $ARTIC
     check_package artic
 fi
 
@@ -298,7 +299,7 @@ if [ $S2 = 1 ] || [ $S3 = 1 ] || [ $S7 = 1 ]; then
         printf "${RED}ERROR:${NC} Unrecognised primer scheme\n\n"
         exit
     fi
-    printf "Primerscheme - $PRIMERSCHEME (Min: $MIN, Max: $MAX)\n"
+    printf "   Primerscheme - $PRIMERSCHEME (Min: $MIN, Max: $MAX)\n"
 fi
 
 if [ $S3 = 1 ] || [ $S5 = 1 ] || [ $S7 = 1 ]; then
@@ -407,7 +408,7 @@ if [ $S3 = 1 ] || [ $S6 = 1 ] ; then
     else
         printf "   Sample barcode array accepted\n"
     fi
-    printf "${GREEN}CHECKED:${NC}No errors in sample list.\n"
+    printf "   ${GREEN}Sample List:${NC} No errors identified.\n"
 fi
 
 #Define logfile output
@@ -418,7 +419,7 @@ RUNLOG=$(echo "$RUNLOG${RUNNAME}_Step_")
 
 #All checks complete
 printf "${GREEN}CHECKED:${NC}All required programs, files and locations are present.\n\n"
-
+exit
 #==============THE SCRIPT==================Se   
 #STEP 1: Run the guppy barcoder to demultiplex into separate barcodes
 if [ $S1 = 1 ] ; then
@@ -460,7 +461,7 @@ if [ $S2 = 1 ] ; then
     printf "\n###### ${BLUE}Step 2: Combining demultiplexed files into a single fastq and excluding based on size.${NC} ######\n\n" | tee "${RUNLOG}2.log"
     readarray -t S2DIRS < <(find $ARTIC_OUT/fastq -type d -name 'barcode[0-9]*')
     
-    change_conda "artic"
+    change_conda $ARTIC
     #Change directory as unable to redirect output from guppyplex
     cd $ARTIC_OUT/fastq
     
@@ -478,7 +479,7 @@ fi
 if [ $S3 = 1 ] ; then
     printf "\n###### ${BLUE}Step 3: Importing samplenames and processing with artic minion command.${NC} ######\n\n" | tee "${RUNLOG}3.log"
     
-    change_conda "artic"
+    change_conda $ARTIC
     #Change directory
     cd $ARTIC_OUT/fastq/
     #Set the count
