@@ -533,7 +533,7 @@ fi
 
 #STEP 4: Concatenate consensus sequences
 if [ $S4 = 1 ] ; then
-    printf "\n###### ${BLUE}Step 4: Concatenating consensus sequences from artic pipeline.${NC} ######\n\n"
+    printf "\n###### ${BLUE}Step 4: Concatenating consensus sequences from artic pipeline${NC} ######\n\n"
     cd $BASEFOLDER
     #Ensure folder exists
     CONSENSUS="$BASEFOLDER/4_Consensus"
@@ -548,7 +548,7 @@ if [ $S4 = 1 ] ; then
     cat sequences.fasta | sed  s'/\/ARTIC\/nanopolish MN908947.3//' > $ALLSEQ
     rm sequences.fasta
     
-    echo -e "\n###### ${GREEN}Step 4: Consensus sequences compiled. ${NC} ######\n\n"
+    echo -e "\n###### ${GREEN}Step 4: Consensus sequences compiled ${NC} ######\n\n"
 else
     printf "###### ${GREEN}Step 4: Skipping consensus sequences ${NC} ######\n\n"
 fi
@@ -675,63 +675,3 @@ else
     printf "###### ${GREEN}Step 7: Skipping generation of QC stats${NC} ######\n\n"
 fi
 exit
-
-
-
-
-#################
-#ARCHIVE STEPS - Keeping here for easier reference
-if [ $S7 = 1 ] ; then
-    printf "\n###### ${BLUE}Step 7: Generate filtered fasta file of submittable entries. ${NC} ######\n\n"
-    
-    cd "$BASEFOLDER/5_GISAID"
-    ALLSEQDATAFN="allsequencedata.csv"
-    present $ALLSEQDATAFN "f"
-    
-    printf "\n###### ${GREEN} Filtering to remove sequences that are not submittable ${NC} ######\n\n"
-    
-    #Pull out the ID for specific column headers
-    SUBCOL="$(GETCOLMID "\t" "Submittable" "$ALLSEQDATAFN")"
-    SEQIDCOL="$(GETCOLMID "\t" "SeqID" "$ALLSEQDATAFN")"
-        
-    #Generate list of sequences
-    awk -F"\t" -v i=$SUBCOL -v j=$SEQIDCOL '$i ~ /True/ {print$j}' allsequencedata.csv > samples.csv
-    
-    #Look for duplicates in the list (second check)
-    DUPES=`cat samples.csv | sort | uniq -d`
-    if [ -n "$DUPES" ] ; then
-        printf "${RED} ERROR: Duplicate entries found in the list of SeqIDs to retain. \n Exiting script\n ${NC}\n"
-        printf "$DUPES\n"
-        exit
-    fi
-    
-    #Filter the list of all sequences to only retain the correct ones
-    seqkit grep -n -f samples.csv $ALLSEQ -o allsequences.submittable.fasta
-    rm samples.csv
-    
-    MINCOV=90
-    MINBREADTH=90
-    
-    printf "\n###### ${GREEN} Filtering to remove sequences with that are >${MINCOV} percent coverage and >${MINBREADTH}x average depth ${NC} ######\n\n"
-    
-    #Pull out all of the submittable SeqID entries that should be retained by searching column headers
-    COVCOL="$(GETCOLMID "\t" "sequencing_depth_avg" "$ALLSEQDATAFN")"
-    BREADTHCOL="$(GETCOLMID "\t" "coverage_breadth" "$ALLSEQDATAFN")"
-    
-    awk -F"\t" -v i=$COVCOL -v j=$BREADTHCOL -v k=$SUBCOL -v l=$SEQIDCOL '$i > 90 && $j > 90 && $k ~ /True/ {print$l}' allsequencedata.csv > samples.csv
-
-    #Look for duplicates in the list (second check)
-    DUPES=`cat samples.csv | sort | uniq -d`
-    if [ -n "$DUPES" ] ; then
-        printf "${RED} ERROR: Duplicate entries found in the list of SeqIDs to retain. \n Exiting script\n ${NC}\n"
-        printf "$DUPES\n"
-        exit
-    fi
-    
-    #Filter the list of all sequences to only retain the correct ones
-    seqkit grep -n -f samples.csv $ALLSEQ -o allsequences.submittable.qc.fasta
-    rm samples.csv
-else
-    printf "###### ${GREEN}Step 7: Skipping generation of filtered fasta file${NC} ######\n\n"
-
-fi
