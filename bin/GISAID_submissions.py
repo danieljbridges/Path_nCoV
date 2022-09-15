@@ -68,28 +68,15 @@ print()
 print("Done.")
 
 print("-" * 80)
-samples_seq_fn = "Samples_Sequenced_With_Metadata.csv"
+samples_seq_fn = "allsequencedata.csv"
 print("Reading in %s file" % samples_seq_fn)
 samplemeta_df = pd.read_csv(os.path.join(seqdata_dir,samples_seq_fn))
 samplemeta_df['SpecimenDate'] = pd.to_datetime(samplemeta_df['SpecimenDate'], format='%Y-%m-%d')
 samplemeta_df['SeqDate'] = pd.to_datetime(samplemeta_df['SeqDate'], format='%Y-%m-%d')
 
 print("-" * 80)
-print("Filtering for submittable samples")
-print("   %d samples identified" % samplemeta_df.shape[0])
-#Drop all entries without a date
-samplemeta_df.query("SpecimenDate > datetime.datetime(2000,1,1)",inplace = True)
-print("   %d samples with a date" % samplemeta_df.shape[0])
-#Drop all entries previously submitted
-samplemeta_df.query("GISAID_Accession_Number != GISAID_Accession_Number",inplace = True)
-print("   %d samples without an accession number" % samplemeta_df.shape[0])
-#DRop all entries without a consensus
-samplemeta_df.query("coverage_breadth_fasta > 0",inplace = True)
-print("   %d samples with a consensus sequence" % samplemeta_df.shape[0])
-#Drop all entries without a location
-#samplemeta_df.dropna(axis=0, subset=['Province'], inplace=True)
-#print("   %d samples with a location" % samplemeta_df.shape[0])
-#Reset the index
+print("Filtering for samples to submit")
+samplemeta_df = samplemeta_df[samplemeta_df['Status'] == 'Awaiting Submission']
 samplemeta_df.reset_index(inplace=True, drop=True)
 
 if samplemeta_df.shape[0] == 0 :
@@ -100,7 +87,7 @@ if samplemeta_df.shape[0] == 0 :
     print("Finished at: %s" % datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     print("=" * 80)
     sys.exit(0)
-
+print("%d samples identified" % samplemeta_df.shape[0])
 
 print("-" * 80)
 print("Generating data for submission")
@@ -108,9 +95,6 @@ print("Generating data for submission")
 
 #Pull out the year
 samplemeta_df["Year"] = samplemeta_df['SpecimenDate'].dt.year.astype('Int64')
-
-#Reset the index
-samplemeta_df.reset_index(inplace=True, drop=True)
 
 #Generate a Province / District location
 l = []

@@ -564,8 +564,8 @@ if [ $S5 = 1 ] ; then
     printf "\n###### ${GREEN} Determining nextclade lineages ${NC} ######\n\n"
     change_conda nextclade
     
-    printf "nextclade --verbose --in-order --input-fasta $ALLSEQ --input-dataset $NCLADE_DATA --input-pcr-primers $REFDIR/nextclade/primers_UNZA.csv --output-csv nextclade.csv --output-json nextclade.json --output-tree nextclade.auspice.json --output-basename allsequences \n\n" | tee "${LOGFOLDER}nextclade.log"
-    nextclade --verbose --in-order --input-fasta $ALLSEQ --input-dataset $NCLADE_DATA --input-pcr-primers $REFDIR/nextclade/primers_UNZA.csv --output-csv nextclade.csv --output-json nextclade.json --output-tree nextclade.auspice.json --output-basename allsequences 2>&1 | tee -a "${LOGFOLDER}nextclade.log"
+    printf "nextclade --verbose --in-order --input-fasta $ALLSEQ --input-dataset $NCLADE_DATA --input-pcr-primers $REFDIR/nextclade/primers_UNZA.csv --output-csv nextclade.csv --output-tree nextclade.auspice.json --output-basename allsequences \n\n" | tee "${LOGFOLDER}nextclade.log"
+    nextclade --verbose --in-order --input-fasta $ALLSEQ --input-dataset $NCLADE_DATA --input-pcr-primers $REFDIR/nextclade/primers_UNZA.csv --output-csv nextclade.csv --output-tree nextclade.auspice.json --output-basename allsequences 2>&1 | tee -a "${LOGFOLDER}nextclade.log"
     #Check everything ran properly
     if [ `grep -c ERROR ${LOGFOLDER}nextclade.log` != 0 ] ; then
         printf "${ORANGE}WARNING: Error(s) identified in Nextclade log\n"

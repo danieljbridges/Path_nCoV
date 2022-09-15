@@ -7,7 +7,7 @@
 # Example usage:
 #   python run_gisaid-statistics.py -d data/WGS
 #
-# JHendry, 2021/01/01
+# JHendry and DBridges
 
 
 import os
@@ -19,9 +19,10 @@ import pandas as pd
 import numpy as np
 from Bio import SeqIO
 from gisaid import *
+import configparser
 
 print("=" * 80)
-print("Compute GISAID statistics")
+print("PATH-UNZAVET bioinformatic pipeline to calculate / combine sequencing statistics")
 print("-" * 80)
 print("Command: %s" % " ".join(sys.argv))
 print("Run on host: %s" % os.uname().nodename)
@@ -48,7 +49,6 @@ for opt, value in opts:
 print("Done.")
 print("")
 
-
 # PREPARE DIRECTORIES
 print("Preparing directories...")
 rampart_dir = os.path.join(data_dir, "2_SampleList_and_Rampart")
@@ -62,8 +62,27 @@ print("  GISAID directory: %s" % gisaid_dir)
 print("Done.")
 print("")
 
+#Loading configuration file
+print("=" * 80)
+config_file = os.path.join("../configs/", "default.ini")
+config = configparser.ConfigParser()
+config['DEFAULT'] = {'qc_breadth': 50,
+                     'qc_depth': 50}
+if not os.path.isfile(config_file):
+    print ("Missing configuration file - using defaults")
+    qc_depth = int(config['DEFAULT']['qc_depth'])
+    qc_breadth = int(config['DEFAULT']['qc_breadth'])
+else:
+    print ("Found configuration file")
+    config.read(config_file)
+    qc_depth = int(config['SubmissionCriteria']['qc_depth'])
+    qc_breadth = int(config['SubmissionCriteria']['qc_breadth'])
+print ("   Using qc_depth cutoff of %d" % qc_depth)
+print ("   Using qc_breadth cutoff of %d" % qc_breadth)
+print("")
 
 # EXAMINE CONTENTS
+print("=" * 80)
 print("Examining directory contents...")
 contents_dt = {}
 rs = os.listdir(artic_dir)
@@ -269,147 +288,126 @@ sequenced_df = Merge2.drop(dropcols, axis=1)
 print("Done.")
 print("")
 
-# MERGE WITH SAMPLE LIST
+#Read in and edit metadata
 print("-" * 80)
-print("Merging sequenced samples with sample list...")
-print("  No. samples...")
-print("    ...in sample list: %d" % seqsamples_df.shape[0])
-print("    ...with consensus sequence: %d" % stats_df.shape[0])
-merged_df = pd.merge(left=seqsamples_df,
-                     right=sequenced_df,
-                     left_on=["SeqRun", "SeqBarcode", "SeqID"],
-                     right_on=["SeqRun", "SeqBarcode", "SeqID"],
-                    how='outer')
-print("    ...after merging: %d" % merged_df.shape[0])
-print("Done.")
-print("")
-
-qc_depth = 50
-qc_breadth = 50
-
-print("-" * 80)
-print("Filtering sample list")
-print("   %d entries identified" % merged_df.shape[0])
-keepers_df = merged_df.query("Type == 'Sample'", inplace=False)
-print("   %d marked as samples" % keepers_df.shape[0])
-keepers_df = keepers_df.query("ExcludeSample != 'Y'", inplace=False)
-print("   %d samples not marked to exclude" % keepers_df.shape[0])
-keepers_df = keepers_df.query("sequencing_depth_avg >= @qc_depth", inplace=False)
-print("   %d samples with seq depth > %dx" % (keepers_df.shape[0], qc_depth))
-keepers_df = keepers_df.query("coverage_breadth >= @qc_breadth", inplace=False)
-print("   %d samples with coverage breadth > %d%%" % (keepers_df.shape[0], qc_breadth))
-print("Samples remaining: %d" % keepers_df.shape[0])
-print("Done")
-print("")
-
-#Highlight duplicates
-print("Identifying highest depth consensus where samples have been sequenced multiple times:")
-
-l_dfs = []
-print("  {:<8}  {:<8}  {:<15}  {:<4}  {:<4}  {:<10}  {:<4}  {:<4}  {:<4}"
-      .format("Sample", "No. dup.", "SeqID", "Breadth", "Depth", "Note", "Top_SeqID","Top_Breadth", "Top_Depth",))
-
-for n, sdf in keepers_df.groupby("SampleID"):
-    n_dup = sdf.shape[0]
-    if n_dup > 1:
-        keep = sdf.sort_values(by =['GISAID_Accession_Number','coverage_breadth','sequencing_depth_avg'], 
-                               ascending=[False,False,False], na_position='last').iloc[0]
-        #Check that there are not multiple GISAID entries or that a better seq exists for submission
-        if sdf[sdf['GISAID_Accession_Number'].notna()].shape[0] > 0 :
-            #Identify best SeqID scoring entry
-            top = sdf.sort_values(by =['coverage_breadth','sequencing_depth_avg'], 
-                                       ascending=[False,False], na_position='last').iloc[0]
-            if top['SeqID'] != keep['SeqID'] :
-                print("  {:<8}  {:<8}  {:<15}  {:<4.0f}     {:<4.0f}     {:<4}  {:<15}  {:<4.0f}     {:<4.0f}".format(
-                    n, n_dup, keep["SeqID"], keep["coverage_breadth"], keep["sequencing_depth_avg"], 
-                    "WARNING", top['SeqID'], top['coverage_breadth'], top['sequencing_depth_avg']))
-            else:
-                print("  {:<8}  {:<8}  {:<15}  {:<4.0f}     {:<4.0f}".format(
-                    n, n_dup, keep["SeqID"], keep["coverage_breadth"], keep["sequencing_depth_avg"]))
-    else:
-        keep = sdf.iloc[0]
-    l_dfs.append(keep)
-keepers_df = pd.concat(l_dfs, 1).transpose()
-print("")
-print("  Total Submittable samples: %d" % keepers_df.shape[0])
-print("Done.")
-print("")
-
-print("Marking submittable samples in df")
-keeperslist_df = keepers_df.filter(['SeqID','SeqRun','SeqBarcode'])
-keeperslist_df["Submittable"] = True
-alldata_df = pd.merge(left=merged_df,
-                     right=keeperslist_df,
-                     left_on=["SeqRun", "SeqBarcode", "SeqID"],
-                     right_on=["SeqRun", "SeqBarcode", "SeqID"],
-                    how='outer')
-alldata_df = alldata_df.fillna({'Submittable' : False})
-
-#Merging in metadata
-print("-" * 80)
-print("Incorporating metadata...")
+print("Reading in metadata...")
 
 metadata_fn="Metadata.csv"
 metadata_df = pd.read_csv(os.path.join(rampart_dir, metadata_fn))
 
-#Add in column highlighting any missing data
+# MERGE ALL DATA SOURCES
+print("-" * 80)
+print("Merging Sample data, SequenceData, and Metadata")
+print("-" * 80)
+print("   %d sample records" % samples_df.shape[0])
+print("   %d sequence data records" % sequenced_df.shape[0])
+print("   %d metadata records" % metadata_df.shape[0])
+
+# Retain all records
+alldata_df = pd.merge(left=samples_df,
+                     right=sequenced_df,
+                     left_on=["SeqRun", "SeqBarcode", "SeqID"],
+                     right_on=["SeqRun", "SeqBarcode", "SeqID"],
+                    how='outer')
+# Only retain records that match with what was sequenced
+alldata_df = pd.merge(left=alldata_df,
+                     right=metadata_df,
+                     left_on=["SampleID"],
+                     right_on=["SampleID"],
+                    how='left')
+
+print("%d all_data records" % alldata_df.shape[0])
+if samples_df.shape[0] != alldata_df.shape[0]:
+    print("ERROR: there should be %d records" % samples_df.shape[0])
+print("-" * 80)
+
+#Highlight records with missing metadata
+print("Highlight missing metadata fields")
 check_cols = ["Province", "District", "SpecimenDate"] #List of key columns
 missing_data = [] #To house the new column of data
-for _, row in metadata_df.iterrows(): #Iterate over rows
+for _, row in alldata_df.iterrows(): #Iterate over rows
     m = [] #List to hold output from an individual column
     for col in check_cols: #Iterate over columns we want to check
         if row[col] != row[col]: #Only NaN is not equal to itself
             m.append(col) #add data to list
     missing_data.append(", ".join(m)) #Join as a new string
-metadata_df["MissingMetadata"] = missing_data
+alldata_df["MissingMetadata"] = missing_data
+print ("Done")
+print("-" * 80)
 
-print("  Metadata identified for : %d samples" % metadata_df.shape[0])
-print("  Sequencing data for : %d samples" % keepers_df.shape[0])
-print("  Merging metadata with sequence data...")
-samplemeta_df = pd.merge(left=metadata_df,
-                     right=keepers_df,
-                     left_on=["SampleID"],
-                     right_on=["SampleID"],
-                    how='inner')
-print("Done")
-print("  Total samples retained: %d" % keepers_df.shape[0])
-
-#Change date fields from str to date
-samplemeta_df['SeqDate'] = pd.to_datetime(samplemeta_df['SeqDate'], format='%d/%m/%Y')
-samplemeta_df['SpecimenDate'] = pd.to_datetime(samplemeta_df['SpecimenDate'], format='%d/%m/%Y')
-#Sanity check on sample date and sequencing date
-samplemeta_df['DateError'] = samplemeta_df['SeqDate'] < samplemeta_df['SpecimenDate']
-
-if samplemeta_df[samplemeta_df.DateError==True].shape[0] > 0 :
-    print("ERROR: %d records have a SeqDate before the SpecimenDate" % samplemeta_df[samplemeta_df.DateError==True].shape[0])
-    print(samplemeta_df[samplemeta_df.DateError==True][['SeqID','SeqRun','SpecimenDate','SeqDate']])
-else:
-    print("All records have a SeqDate after the SpecimenDate")
-    samplemeta_df.drop(columns = ['DateError'], inplace = True)
+#Highlight duplicates
+print("Identifying highest depth consensus where samples have been sequenced multiple times:")
 print("")
 
-#WRITE RESULTS
-print("  Writing out all sequence data with metadata...")
-output_fn = "Samples_Sequenced_With_Metadata.csv"
-samplemeta_df.to_csv(os.path.join(gisaid_dir, output_fn), sep = ',', index=False)
-print("  To: %s" % os.path.join(gisaid_dir, output_fn))
-print("Done.")
-print("")
+l_dfs = []
+print("  {:<8}  {:<8}  {:<15}  {:<4}  {:<4}  {:<10}  {:<4}  {:<4}  {:<4}"
+      .format("Sample", "No. dup.", "SeqID", "Breadth", "Depth", "Note", "Top_SeqID","Top_Breadth", "Top_Depth",))
+
+for n, sdf in alldata_df.groupby("SampleID"):
+    n_dup = sdf.shape[0]
+    if n_dup > 1:
+        keep = sdf.sort_values(by =['GISAID_Accession_Number','coverage_breadth','sequencing_depth_avg'], 
+                               ascending=[False,False,False], na_position='last').iloc[0]
+        #Identify best SeqID scoring entry
+        top = sdf.sort_values(by =['coverage_breadth','sequencing_depth_avg'], 
+                                   ascending=[False,False], na_position='last').iloc[0]
+        #Check it correlates to the one selected to keep and warn if not else print summary
+        if top['SeqID'] != keep['SeqID'] :
+            print("  {:<8}  {:<8}  {:<15}  {:<4.0f}     {:<4.0f}     {:<4}  {:<15}  {:<4.0f}     {:<4.0f}".format(
+                n, n_dup, keep["SeqID"], keep["coverage_breadth"], keep["sequencing_depth_avg"], 
+                "WARNING", top['SeqID'], top['coverage_breadth'], top['sequencing_depth_avg']))
+        else:
+            print("  {:<8}  {:<8}  {:<15}  {:<4.0f}     {:<4.0f}".format(
+                    n, n_dup, keep["SeqID"], keep["coverage_breadth"], keep["sequencing_depth_avg"]))
+    else:
+        keep = sdf.iloc[0]
+    l_dfs.append(keep)
+
+topscores_df = pd.concat(l_dfs, 1).transpose()
 
 print("-" * 80)
-print("Finalising all sequencing data...")
+print("Marking top scoring records for each SampleID")
+alldata_df["TopScore"] = np.where(alldata_df["RecordID"].isin(topscores_df["RecordID"]),True,False)
 
-# Add column to alldata_df that highlights if a sample has metadata or not
-print("Marking samples with available metadata in df")
-SID_meta = list(samplemeta_df['SampleID'])
-meta = []
-for s in alldata_df['SampleID'] :
-    if s in SID_meta :
-        r = True
-    else :
-        r = False
-    meta.append(r)
-alldata_df['Metadata available'] = meta
+print("Marking records where sequence sample passes QC standards (breadth %d%%, depth %dx)" % (qc_breadth, qc_depth))
+alldata_df["QC_Sequence"] = np.where((alldata_df["sequencing_depth_avg"] > qc_depth) &
+                                     (alldata_df["coverage_breadth"] >= qc_breadth),True,False)
+
+print("Marking status of each row")
+alldata_df.loc[alldata_df['GISAID_Accession_Number'].notnull(), 'Status'] = 'Published'
+alldata_df.loc[alldata_df['Type'] == 'Control', 'Status'] = 'Controls'
+alldata_df.loc[alldata_df['ExcludeSample']=='Y', 'Status'] = 'Excluded'
+alldata_df.loc[(alldata_df['Status'].isnull()) &
+               (alldata_df['QC_Sequence']==True) &
+               (alldata_df['TopScore'] == True) &
+               (alldata_df['SpecimenDate'].notnull()), 'Status'] = 'Awaiting Submission'
+alldata_df.loc[(alldata_df['Status'].isnull()) & 
+               (alldata_df['TopScore'] == True) &
+               (alldata_df['QC_Sequence']==True) &
+               (alldata_df['SpecimenDate'].isnull()), 'Status'] = 'Requires metadata for submission'
+alldata_df.loc[(alldata_df['Status'].isnull()) &
+               (alldata_df['SeqRun'].notnull()) , 'Status'] = 'Sequenced'
+alldata_df.loc[alldata_df['Status'].isnull() , 'Status'] = 'PCR amplified'
+
+print("-" * 80)
+
+print("Tidying up various data fields")
+#Change date fields from str to date
+alldata_df['SeqDate'] = pd.to_datetime(alldata_df['SeqDate'], format='%d/%m/%Y')
+
+#Drop date field as excel keeps changing format and rebuild from separate cols
+alldata_df.drop(labels='SpecimenDate', axis =1)
+alldata_df['SpecimenDate'] = pd.to_datetime(alldata_df['SpecimenDate'], format='%d/%m/%Y')
+#Sanity check on sample date and sequencing date
+alldata_df['DateError'] = alldata_df['SeqDate'] < alldata_df['SpecimenDate']
+
+if alldata_df[alldata_df.DateError==True].shape[0] > 0 :
+    print("ERROR: %d records have a SeqDate before the SpecimenDate" % alldata_df[alldata_df.DateError==True].shape[0])
+    print(alldata_df[alldata_df.DateError==True][['SeqID','SeqRun','SpecimenDate','SeqDate']])
+else:
+    print("All records have a SeqDate after the SpecimenDate")
+    alldata_df.drop(columns = ['DateError'], inplace = True)
+print("")
 
 #WRITE RESULTS
 print("Writing out all sequencing data...")
