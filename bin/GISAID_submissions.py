@@ -67,12 +67,26 @@ except:              # Whatever your error is (mine was a keyError)
 print()
 print("Done.")
 
+def FormatDates (df,datefield):
+    Date = df[datefield][df[datefield].notnull()].iloc[0]
+    print("   Date field example: %s" % Date)
+    if Date[2] == '/':
+        print("Date format appears to be DD/MM/YYYY (Excel)")
+        df[datefield] = pd.to_datetime(df[datefield], format='%d/%m/%Y')
+    elif Date[4] == '-':
+        print("Date format appears to be YYYY-MM-DD (native output)")
+        df[datefield] = pd.to_datetime(df[datefield], format='%Y-%m-%d')
+    else:
+        print("Unknown date format")
+
 print("-" * 80)
 samples_seq_fn = "allsequencedata.csv"
 print("Reading in %s file" % samples_seq_fn)
 samplemeta_df = pd.read_csv(os.path.join(seqdata_dir,samples_seq_fn))
-samplemeta_df['SpecimenDate'] = pd.to_datetime(samplemeta_df['SpecimenDate'], format='%Y-%m-%d')
-samplemeta_df['SeqDate'] = pd.to_datetime(samplemeta_df['SeqDate'], format='%Y-%m-%d')
+
+#Format Date fields
+FormatDates(df=samplemeta_df, datefield="SpecimenDate")
+FormatDates(df=samplemeta_df, datefield="SeqDate")
 
 print("-" * 80)
 print("Filtering for samples to submit")
