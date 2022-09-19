@@ -142,7 +142,7 @@ if [ ${#LIST[@]} = 0 ] ; then
     exit
 elif [ ${#LIST[@]} = 1 ] ; then #Use if single match
     printf "   ${GREEN}$1${NC} environment found\n"
-    ARTIC=$1
+#    ARTIC=$1
 elif [ ${#LIST[@]} > 1 ] ; then
     printf "   Found multiple matches for $1:\n"
     for L in "${LIST[@]}" ; do
@@ -275,7 +275,7 @@ fi
 
 if [ $S2 = 1 ] || [ $S3 = 1 ]; then
     check_condaenv artic
-    change_conda $ARTIC
+    change_conda artic
     check_package artic
 fi
 
@@ -461,7 +461,7 @@ if [ $S2 = 1 ] ; then
     printf "\n###### ${BLUE}Step 2: Combining demultiplexed files into a single fastq and excluding based on size.${NC} ######\n\n" | tee "${RUNLOG}2.log"
     readarray -t S2DIRS < <(find $ARTIC_OUT/fastq -type d -name 'barcode[0-9]*')
     
-    change_conda $ARTIC
+    change_conda artic
     #Change directory as unable to redirect output from guppyplex
     cd $ARTIC_OUT/fastq
     
@@ -479,7 +479,7 @@ fi
 if [ $S3 = 1 ] ; then
     printf "\n###### ${BLUE}Step 3: Importing samplenames and processing with artic minion command.${NC} ######\n\n" | tee "${RUNLOG}3.log"
     
-    change_conda $ARTIC
+    change_conda artic
     #Change directory
     cd $ARTIC_OUT/fastq/
     #Set the count
